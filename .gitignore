@@ -1,2 +1,6 @@
 /target
 **/*.rs.bk
+/samples
+/*.png
+/.idea
+/.vscode

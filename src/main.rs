@@ -2,7 +2,7 @@ use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-mod merge;
+use lzn::merge;
 
 fn sort_by_name_order(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
     paths.sort_unstable_by(|x, y| {
@@ -28,21 +28,68 @@ fn sort_by_name_order(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
 #[derive(Debug, StructOpt)]
 #[structopt(name = "lzn", about = "lezhin crawler & image database manager")]
 enum Cmd {
-    /// Merges images into vertical in subdirectories of given directory.
+    /// Merges jpgs from given directory into single image.
     #[structopt(name = "merge")]
-    MergeImages,
+    MergeImages {
+        #[structopt(parse(from_os_str))]
+        dir: PathBuf,
+        #[structopt(short, long, parse(from_os_str), default_value = "merged.png")]
+        out: PathBuf,
+    },
+
+    /// Merges images vertical in each subdirectories of given directory.
+    #[structopt(name = "merge-dirs")]
+    MergeDirs {
+        #[structopt(parse(from_os_str))]
+        dir: PathBuf,
+        #[structopt(short, long, default_value = "merged.png")]
+        out: String,
+    },
+}
+
+impl Cmd {
+    fn process(self) -> Result<(), Box<dyn Error>> {
+        match self {
+            Cmd::MergeImages { mut dir, out } => {
+                dir.push("[0-9]*.jpg");
+                let paths = sort_by_name_order(
+                    glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)?
+                        .collect::<Result<Vec<PathBuf>, _>>()?,
+                );
+
+                log::info!(
+                    "found {} images from glob pattern {}. merging and saving...",
+                    paths.len(),
+                    dir.to_str().unwrap()
+                );
+                merge::merge_paths_vertical(paths)?.save(out)?;
+            }
+            Cmd::MergeDirs { mut dir, out } => {
+                dir.push("[0-9]* - *");
+                log::debug!("merge-dirs path: {}", dir.to_str().unwrap());
+                for path in glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)? {
+                    let mut iout = path?;
+                    log::info!("Merging images inside {:?}", iout.to_str().unwrap());
+                    let path = iout.clone();
+                    iout.push(&out);
+                    (Self::MergeImages {
+                        dir: path,
+                        out: iout,
+                    })
+                    .process()?;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+
     let opt = Cmd::from_args();
-    println!("{:#?}", opt);
+    log::debug!("opt: {:?}", opt);
 
-    let paths = sort_by_name_order(
-        glob::glob(r#"C:\Users\ska82\python\lzncrawl\better_spring\1 - 1화\[0-9]*.jpg"#)?
-            .collect::<Result<Vec<PathBuf>, _>>()?,
-    );
-
-    merge::merge_vertical(paths)?.save("result.png")?;
-
-    Ok(())
+    opt.process()
 }
