@@ -16,13 +16,13 @@ path = "src/lib.rs"
 
 [dependencies]
 image = { version = "0.22", default-features = false, features = ["jpeg", "png_codec"] }
-glob = "0.3"
-structopt = { version = "0.3", default-features = false }
+glob = "0.3.0"
+structopt = { version = "0.3.3", default-features = false }
 log = "0.4.0"
 env_logger = "0.7.1"
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.3.0"
 
 [[bench]]
 name = "merge"
