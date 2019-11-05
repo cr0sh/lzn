@@ -1,29 +1,9 @@
+use sled::Db;
 use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-use lzn::merge;
-
-fn sort_by_name_order(mut paths: Vec<PathBuf>) -> Vec<PathBuf> {
-    paths.sort_unstable_by(|x, y| {
-        let xn = x
-            .file_stem()
-            .expect("expected filename")
-            .to_str()
-            .expect("filename conversion to UTF-8 failed")
-            .parse::<u32>()
-            .expect("filename should be numeric");
-        let yn = y
-            .file_stem()
-            .expect("expected filename")
-            .to_str()
-            .expect("filename conversion to UTF-8 failed")
-            .parse::<u32>()
-            .expect("filename should be numeric");
-        Ord::cmp(&xn, &yn)
-    });
-    paths
-}
+use lzn::{merge, migrate, util};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "lzn", about = "lezhin crawler & image database manager")]
@@ -45,6 +25,17 @@ enum Cmd {
         #[structopt(short, long, default_value = "merged.png")]
         out: String,
     },
+
+    /// Migrates zip-based file or directory into rkv(LMDB) database.
+    #[structopt(name = "migrate")]
+    Migrate {
+        /// Zip archive or directory to import.
+        #[structopt(parse(from_os_str))]
+        dir: PathBuf,
+        /// LMDB database to save.
+        #[structopt(parse(from_os_str))]
+        db: Option<PathBuf>,
+    },
 }
 
 impl Cmd {
@@ -52,7 +43,7 @@ impl Cmd {
         match self {
             Cmd::MergeImages { mut dir, out } => {
                 dir.push("[0-9]*.jpg");
-                let paths = sort_by_name_order(
+                let paths = util::sort_by_name_order(
                     glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)?
                         .collect::<Result<Vec<PathBuf>, _>>()?,
                 );
@@ -79,6 +70,35 @@ impl Cmd {
                     .process()?;
                 }
             }
+            Cmd::Migrate { dir, db } => {
+                let db = match db {
+                    Some(path) => path,
+                    None => {
+                        let mut path = dirs::home_dir()
+                            .ok_or("Unable to get home directory of current user")?;
+                        path.push("lzn");
+                        path
+                    }
+                };
+
+                if log::log_enabled!(log::Level::Info) {
+                    log::info!("Opening Sled DB at {:?}", db.clone());
+                }
+
+                let t = Db::open(db)?;
+
+                if dir.is_dir() {
+                    log::info!("Migrating from directory {}", dir.to_str().unwrap());
+                    log::info!(
+                        "Success: added {} images to database.",
+                        migrate::migrate_dir(&t, dir)?
+                    );
+                } else {
+                    log::info!("Migrating from archive {}", dir.to_str().unwrap());
+                    migrate::migrate_zip(&t, dir)?;
+                    log::info!("Migration complete.");
+                }
+            }
         }
 
         Ok(())
@@ -86,7 +106,7 @@ impl Cmd {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("lzn=info"));
 
     let opt = Cmd::from_args();
     log::debug!("opt: {:?}", opt);

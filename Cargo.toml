@@ -18,8 +18,17 @@ path = "src/lib.rs"
 image = { version = "0.22", default-features = false, features = ["jpeg", "png_codec"] }
 glob = "0.3.0"
 structopt = { version = "0.3.3", default-features = false }
-log = "0.4.0"
+log = "0.4.8"
 env_logger = "0.7.1"
+dirs = "2.0"
+zip = "0.5.3"
+sled = "0.29.2"
+chrono = {version = "0.4.9", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+bincode = "1.2"
+derive_builder = "0.8.1"
+encoding = "0.2.33"
+err-derive = "0.2.1"
 
 [dev-dependencies]
 criterion = "0.3.0"
@@ -27,8 +36,3 @@ criterion = "0.3.0"
 [[bench]]
 name = "merge"
 harness = false
-
-[profile.release]
-debug = true
-panic = "abort"
-
