@@ -1,1 +1,1 @@
-drop table lezhin;
+DROP TABLE lezhin;

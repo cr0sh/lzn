@@ -8,3 +8,15 @@ table! {
         updated_at -> Timestamp,
     }
 }
+
+table! {
+    titles (id) {
+        id -> Text,
+        title -> Nullable<Text>,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(
+    lezhin,
+    titles,
+);

@@ -3,7 +3,9 @@ extern crate diesel_migrations;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use diesel_migrations::{embed_migrations, run_pending_migrations};
+use diesel_migrations::{
+    any_pending_migrations, embed_migrations, run_pending_migrations, RunMigrationsError,
+};
 use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -105,6 +107,8 @@ impl Cmd {
                 )
                 .map_err(|e| format!("Cannot connect database: {:?}", e))?;
 
+                check_migrations(&conn)?;
+
                 log::info!("Migrating from archive {}", dir.to_str().unwrap());
                 let res = migrate::migrate_zip(&conn, dir)?;
                 log::info!(
@@ -142,6 +146,14 @@ impl Cmd {
 }
 
 embed_migrations!("migrations");
+
+fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
+    if any_pending_migrations(conn)? {
+        log::warn!("Some migrations are not yet applied.");
+        log::warn!("Please run `lzn setup` to apply these migrations.")
+    }
+    Ok(())
+}
 
 fn main() {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("lzn=info"));
