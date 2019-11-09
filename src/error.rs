@@ -1,6 +1,7 @@
 use bincode::Error as BincodeError;
-use sled::Error as SledError;
+use diesel::result::Error as DieselError;
 use std::io::Error as IOError;
+use std::num::ParseIntError;
 use zip::result::ZipError;
 
 use err_derive::Error;
@@ -11,10 +12,12 @@ pub enum Error {
     Bincode(#[error(source)] BincodeError),
     #[error(display = "zip-rs library failure")]
     Zip(#[error(source)] ZipError),
-    #[error(display = "Sled database failure")]
-    Sled(#[error(source)] SledError),
     #[error(display = "std::io failure")]
     IO(#[error(source)] IOError),
+    #[error(display = "Cannot parse number")]
+    ParseInt(#[error(source)] ParseIntError),
+    #[error(display = "Diesel failure")]
+    Diesel(#[error(source)] DieselError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

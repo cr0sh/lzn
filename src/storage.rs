@@ -1,17 +1,17 @@
 //! Database wrapper.
-//! DB backend is [Sled](https://docs.rs/sled/0.29.2/sled/).
+//! Uses diesel with SQLite backend,
 
 use crate::error::Result;
 use crate::provider::Provider;
 use chrono::{DateTime, Local};
 use derive_builder::Builder;
+use diesel::sqlite::SqliteConnection;
 use serde::{Deserialize, Serialize};
-use sled::Db;
 use std::iter::Iterator;
 
 /// Database wrapper instance.
 pub struct Storage {
-    db: Db,
+    conn: SqliteConnection,
 }
 
 impl Storage {

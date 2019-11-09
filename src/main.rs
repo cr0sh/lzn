@@ -1,9 +1,12 @@
-use sled::Db;
+use diesel::prelude::*;
+use diesel::sqlite::SqliteConnection;
 use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
 use lzn::{merge, migrate, util};
+
+const DEFAULT_DATABASE_NAME: &str = "lzn.sqlite";
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "lzn", about = "lezhin crawler & image database manager")]
@@ -26,13 +29,13 @@ enum Cmd {
         out: String,
     },
 
-    /// Migrates zip-based file or directory into rkv(LMDB) database.
+    /// Migrates zip archive into database.
     #[structopt(name = "migrate")]
     Migrate {
-        /// Zip archive or directory to import.
+        /// Zip archive to import.
         #[structopt(parse(from_os_str))]
         dir: PathBuf,
-        /// LMDB database to save.
+        /// Database path. If not provided defaults to ~/lzn.sqlite
         #[structopt(parse(from_os_str))]
         db: Option<PathBuf>,
     },
@@ -71,33 +74,29 @@ impl Cmd {
                 }
             }
             Cmd::Migrate { dir, db } => {
-                let db = match db {
+                let dbpath = match db {
                     Some(path) => path,
                     None => {
                         let mut path = dirs::home_dir()
                             .ok_or("Unable to get home directory of current user")?;
-                        path.push("lzn");
+                        path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
                 };
 
                 if log::log_enabled!(log::Level::Info) {
-                    log::info!("Opening Sled DB at {:?}", db.clone());
+                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
                 }
 
-                let t = Db::open(db)?;
+                let t = SqliteConnection::establish(
+                    dbpath.to_str().expect("Converting PathBuf to &str failed"),
+                )?;
 
-                if dir.is_dir() {
-                    log::info!("Migrating from directory {}", dir.to_str().unwrap());
-                    log::info!(
-                        "Success: added {} images to database.",
-                        migrate::migrate_dir(&t, dir)?
-                    );
-                } else {
-                    log::info!("Migrating from archive {}", dir.to_str().unwrap());
-                    migrate::migrate_zip(&t, dir)?;
-                    log::info!("Migration complete.");
-                }
+                log::info!("Migrating from archive {}", dir.to_str().unwrap());
+                log::info!(
+                    "Migration complete. Imported {} images.",
+                    migrate::migrate_zip(&t, dir)?
+                );
             }
         }
 
@@ -105,11 +104,18 @@ impl Cmd {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("lzn=info"));
 
     let opt = Cmd::from_args();
     log::debug!("opt: {:?}", opt);
 
-    opt.process()
+    if let Err(e) = opt.process() {
+        log::error!(
+            "Error: {}, source: {:?}",
+            e,
+            e.source().map(ToString::to_string)
+        );
+        std::process::exit(1)
+    }
 }
