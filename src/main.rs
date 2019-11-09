@@ -112,7 +112,7 @@ impl Cmd {
                 log::info!("Migrating from archive {}", dir.to_str().unwrap());
                 let res = migrate::migrate_zip(&conn, dir)?;
                 log::info!(
-                    "Migration complete. Imported {} images. {} records are failed to insert.",
+                    "Migration complete. Imported {} images. {} records are failed to be inserted.",
                     res.0,
                     res.1,
                 );
