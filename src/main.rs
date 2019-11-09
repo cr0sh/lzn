@@ -1,5 +1,9 @@
+#[macro_use]
+extern crate diesel_migrations;
+
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
+use diesel_migrations::{embed_migrations, run_pending_migrations};
 use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -35,6 +39,14 @@ enum Cmd {
         /// Zip archive to import.
         #[structopt(parse(from_os_str))]
         dir: PathBuf,
+        /// Database path. If not provided defaults to ~/lzn.sqlite
+        #[structopt(parse(from_os_str))]
+        db: Option<PathBuf>,
+    },
+
+    /// Run Diesel DB migrations on given database path.
+    #[structopt(name = "setup")]
+    Setup {
         /// Database path. If not provided defaults to ~/lzn.sqlite
         #[structopt(parse(from_os_str))]
         db: Option<PathBuf>,
@@ -88,21 +100,48 @@ impl Cmd {
                     log::info!("Opening SQLite DB at {:?}", dbpath.clone());
                 }
 
-                let t = SqliteConnection::establish(
+                let conn = SqliteConnection::establish(
                     dbpath.to_str().expect("Converting PathBuf to &str failed"),
-                )?;
+                )
+                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
 
                 log::info!("Migrating from archive {}", dir.to_str().unwrap());
+                let res = migrate::migrate_zip(&conn, dir)?;
                 log::info!(
-                    "Migration complete. Imported {} images.",
-                    migrate::migrate_zip(&t, dir)?
+                    "Migration complete. Imported {} images. {} records are failed to insert.",
+                    res.0,
+                    res.1,
                 );
+            }
+            Cmd::Setup { db } => {
+                let dbpath = match db {
+                    Some(path) => path,
+                    None => {
+                        let mut path = dirs::home_dir()
+                            .ok_or("Unable to get home directory of current user")?;
+                        path.push(DEFAULT_DATABASE_NAME);
+                        path
+                    }
+                };
+
+                log::info!("Setup executing on {:?}", &dbpath);
+
+                let conn = SqliteConnection::establish(
+                    dbpath.to_str().expect("Converting PathBuf to &str failed"),
+                )
+                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+
+                run_pending_migrations(&conn)?;
+
+                log::info!("Setup succeeded.");
             }
         }
 
         Ok(())
     }
 }
+
+embed_migrations!("migrations");
 
 fn main() {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("lzn=info"));

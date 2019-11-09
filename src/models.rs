@@ -1,7 +1,7 @@
 use crate::schema::lezhin;
 use chrono::NaiveDateTime;
 
-#[derive(Queryable, Insertable)]
+#[derive(Queryable, Insertable, Debug)]
 #[table_name = "lezhin"]
 pub(crate) struct ComicRecord {
     pub(crate) comic: String,

@@ -1,5 +1,5 @@
 use image::{DynamicImage, GenericImage, GenericImageView, ImageResult, RgbaImage};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub fn merge_paths_vertical(paths: Vec<impl AsRef<Path>>) -> ImageResult<RgbaImage> {
     let images = paths

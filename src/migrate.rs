@@ -1,14 +1,13 @@
 use crate::error::Result;
 use crate::models::ComicRecord;
 use crate::schema;
-use crate::util::{sort_by_name_order, try_windows_949};
+use crate::util::try_windows_949;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{Read, Result as IOResult};
+use std::io::Read;
 use std::path::PathBuf;
-use zip::read::ZipArchive;
 // directory
 #[derive(Serialize, Deserialize, Debug)]
 enum DBKey {
@@ -26,8 +25,9 @@ enum DirValue {
 }
 
 /// Imports image files from zip archive.
-pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<usize> {
+pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<(usize, usize)> {
     let mut files_count = 0;
+    let mut failed_records: usize = 0;
     let mut z = zip::ZipArchive::new(File::open(dir)?)?;
     log::info!("zip file contains {} files/directories in total.", z.len());
     for i in 0..z.len() {
@@ -62,19 +62,34 @@ pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<usize> {
         let mut picture = Vec::with_capacity(file.size() as usize);
         file.read_to_end(&mut picture)?;
 
-        diesel::insert_into(schema::lezhin::table)
-            .values(&ComicRecord {
-                comic,
-                episode_seq,
-                episode,
-                picture_seq,
-                picture,
-                updated_at: chrono::Local::now().naive_local(),
-            })
-            .execute(conn)?;
+        let record = ComicRecord {
+            comic,
+            episode_seq,
+            episode,
+            picture_seq,
+            picture,
+            updated_at: chrono::Local::now().naive_local(),
+        };
+        if let Err(e) = diesel::insert_into(schema::lezhin::table)
+            .values(&record)
+            .execute(conn)
+        {
+            log::debug!(
+                "Record failed: dir {}, record {:#?}, cause: {}",
+                name,
+                ComicRecord {
+                    picture: Vec::new(),
+                    ..record
+                },
+                e,
+            );
+
+            failed_records += 1;
+            continue;
+        }
 
         files_count += 1;
     }
 
-    Ok(files_count)
+    Ok((files_count, failed_records))
 }
