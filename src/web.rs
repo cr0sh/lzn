@@ -71,6 +71,7 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Resu
         App::new()
             .wrap(middleware::Logger::default())
             .register_data(data.clone())
+            .service(static_css)
             .service(comic_pics)
     })
     .bind(addr)?
