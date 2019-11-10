@@ -1,4 +1,6 @@
 CREATE TABLE titles (
-    id TEXT NOT NULL PRIMARY KEY,
-    title TEXT
+    provider TEXT NOT NULL,
+    id TEXT NOT NULL,
+    title TEXT,
+    PRIMARY KEY(provider, id)
 );

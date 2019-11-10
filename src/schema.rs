@@ -10,10 +10,14 @@ table! {
 }
 
 table! {
-    titles (id) {
+    titles (provider, id) {
+        provider -> Text,
         id -> Text,
         title -> Nullable<Text>,
     }
 }
 
-allow_tables_to_appear_in_same_query!(lezhin, titles,);
+allow_tables_to_appear_in_same_query!(
+    lezhin,
+    titles,
+);
