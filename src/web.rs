@@ -5,8 +5,13 @@ use actix_web::{
 use diesel::prelude::*;
 use std::sync::Mutex;
 
+#[get("/static/styles.css")]
+fn static_css() -> &'static str {
+    include_str!("../static_web/styles.css")
+}
+
 #[get("/comic/{comic_id}/{episode_id}")]
-fn index(
+fn comic_pics(
     path: web::Path<(String, i32)>,
     data: web::Data<Mutex<SqliteConnection>>,
 ) -> impl Responder {
@@ -26,7 +31,7 @@ fn index(
     fn into_embedded_image(rec: &ComicRecord) -> String {
         match &rec.picture {
             Some(inner) => format!(
-                r#"<img style="display: block;" alt="image sequence {}" src="data:image/jpg;base64,{}">"#,
+                r#"<img alt="image sequence {}" src="data:image/jpg;base64,{}">"#,
                 rec.picture_seq,
                 base64::encode(&inner)
             ),
@@ -41,9 +46,21 @@ fn index(
         .join("");
 
     Ok::<HttpResponse, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
-        "Found {} records<br />\n{}",
+        r#"<html>
+<head>
+    <meta charset="UTF-8"> 
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+Found {} records, response size {}MiB<br />
+{}
+<div align="center">
+    <a class="next-link" href="{}">Next</a>
+</div>
+</html>"#,
         recs.len(),
-        resp
+        f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
+        resp,
+        episode_id + 1,
     )))
 }
 
@@ -54,8 +71,7 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Resu
         App::new()
             .wrap(middleware::Logger::default())
             .register_data(data.clone())
-            .service(index)
-            .service(actix_files::Files::new("/static/", "static_web"))
+            .service(comic_pics)
     })
     .bind(addr)?
     .run()?;

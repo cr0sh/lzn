@@ -62,8 +62,8 @@ enum Cmd {
         #[structopt(parse(from_os_str))]
         db: Option<PathBuf>,
         /// Port number to listen HTTP requests.
-        #[structopt(short, long, default_value = "8333")]
-        port: u16,
+        #[structopt(short, long, default_value = "localhost:8333")]
+        addr: String,
     },
 }
 
@@ -151,7 +151,7 @@ impl Cmd {
 
                 log::info!("Setup succeeded.");
             }
-            Cmd::Serve { db, port } => {
+            Cmd::Serve { db, addr } => {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
@@ -169,13 +169,9 @@ impl Cmd {
 
                 check_migrations(&conn)?;
 
-                log::info!(
-                    "Serving {} on localhost::{}",
-                    dbpath.to_str().unwrap(),
-                    port
-                );
+                log::info!("Serving {} on {}", dbpath.to_str().unwrap(), addr,);
 
-                web::serve(("localhost", port), conn)?;
+                web::serve(addr, conn)?;
             }
         }
 
