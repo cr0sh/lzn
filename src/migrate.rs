@@ -65,9 +65,9 @@ pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<(usize, usiz
         let record = ComicRecord {
             comic,
             episode_seq,
-            episode,
+            episode: Some(episode),
             picture_seq,
-            picture,
+            picture: Some(picture),
             updated_at: chrono::Local::now().naive_local(),
         };
         if let Err(e) = diesel::insert_into(schema::lezhin::table)
@@ -78,7 +78,7 @@ pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<(usize, usiz
                 "Record failed: dir {}, record {:#?}, cause: {}",
                 name,
                 ComicRecord {
-                    picture: Vec::new(),
+                    picture: None,
                     ..record
                 },
                 e,

@@ -10,9 +10,10 @@ use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-use lzn::{merge, migrate, util};
+use lzn::{merge, migrate, util, web};
 
 const DEFAULT_DATABASE_NAME: &str = "lzn.sqlite";
+const DEFAULT_LOG_ENV: &str = "lzn=info,actix_web=info";
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "lzn", about = "lezhin crawler & image database manager")]
@@ -52,6 +53,17 @@ enum Cmd {
         /// Database path. If not provided defaults to ~/lzn.sqlite
         #[structopt(parse(from_os_str))]
         db: Option<PathBuf>,
+    },
+
+    /// Serve database contents as web document.
+    #[structopt(name = "serve")]
+    Serve {
+        /// Database path. If not provided defaults to ~/lzn.sqlite
+        #[structopt(parse(from_os_str))]
+        db: Option<PathBuf>,
+        /// Port number to listen HTTP requests.
+        #[structopt(short, long, default_value = "8333")]
+        port: u16,
     },
 }
 
@@ -139,6 +151,32 @@ impl Cmd {
 
                 log::info!("Setup succeeded.");
             }
+            Cmd::Serve { db, port } => {
+                let dbpath = match db {
+                    Some(path) => path,
+                    None => {
+                        let mut path = dirs::home_dir()
+                            .ok_or("Unable to get home directory of current user")?;
+                        path.push(DEFAULT_DATABASE_NAME);
+                        path
+                    }
+                };
+
+                let conn = SqliteConnection::establish(
+                    dbpath.to_str().expect("Converting PathBuf to &str failed"),
+                )
+                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+
+                check_migrations(&conn)?;
+
+                log::info!(
+                    "Serving {} on localhost::{}",
+                    dbpath.to_str().unwrap(),
+                    port
+                );
+
+                web::serve(("localhost", port), conn)?;
+            }
         }
 
         Ok(())
@@ -156,7 +194,7 @@ fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
 }
 
 fn main() {
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("lzn=info"));
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or(DEFAULT_LOG_ENV));
 
     let opt = Cmd::from_args();
     log::debug!("opt: {:?}", opt);

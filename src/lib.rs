@@ -8,3 +8,4 @@ pub mod models;
 pub mod provider;
 pub mod schema;
 pub mod util;
+pub mod web;
