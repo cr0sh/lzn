@@ -46,7 +46,7 @@ fn comic_pics(
         .join("");
 
     Ok::<HttpResponse, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
-        r#"<html>
+            r#"<html>
 <head>
     <meta charset="UTF-8"> 
     <link rel="stylesheet" href="/static/styles.css">
@@ -57,16 +57,52 @@ Found {} records, response size {}MiB, title {}<br />
     <a class="next-link" href="{}">Next</a>
 </div>
 </html>"#,
-        recs.len(),
-        f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
+            recs.len(),
+            f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
             recs.iter()
                 .map(|x| x.episode.clone())
                 .flatten()
                 .next()
                 .unwrap_or_else(|| String::from("(unknown)")),
-        resp,
-        episode_id + 1,
-    )))
+            resp,
+            episode_id + 1,
+        )))
+}
+
+#[get("/list-comics")]
+fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
+    use crate::models::TitleRecord;
+    use crate::schema::titles::dsl::*;
+
+    let conn = data.lock().unwrap();
+
+    let tvec = titles
+        .order_by(title)
+        .load::<TitleRecord>(&*conn)
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    fn into_list_row(rec: TitleRecord) -> String {
+        format!(
+            r#"<a href="/comic/{}/1">{} ({})</a><br>"#,
+            rec.id,
+            rec.id,
+            rec.title.unwrap_or_else(|| String::from("title unknown"))
+        )
+    }
+
+    Ok::<_, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
+        r#"<html>
+<head>
+    <meta charset="UTF-8"> 
+</head>
+<body>        
+{}
+</body>
+</html>"#,
+        tvec.into_iter()
+            .map(into_list_row)
+            .collect::<Vec<String>>()
+            .join(""))))
 }
 
 pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Result<()> {
@@ -78,6 +114,7 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Resu
             .register_data(data.clone())
             .service(static_css)
             .service(comic_pics)
+            .service(list_comics)
     })
     .bind(addr)?
     .run()?;
