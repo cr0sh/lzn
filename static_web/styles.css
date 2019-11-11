@@ -24,4 +24,8 @@ img {
         border: 0;
         padding: 0;
     }
+
+    .next-link {
+        font-size: 400%;
+    }
 }
