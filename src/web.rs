@@ -51,7 +51,7 @@ fn comic_pics(
     <meta charset="UTF-8"> 
     <link rel="stylesheet" href="/static/styles.css">
 </head>
-Found {} records, response size {}MiB<br />
+Found {} records, response size {}MiB, title {}<br />
 {}
 <div align="center">
     <a class="next-link" href="{}">Next</a>
@@ -59,6 +59,11 @@ Found {} records, response size {}MiB<br />
 </html>"#,
         recs.len(),
         f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
+            recs.iter()
+                .map(|x| x.episode.clone())
+                .flatten()
+                .next()
+                .unwrap_or_else(|| String::from("(unknown)")),
         resp,
         episode_id + 1,
     )))
