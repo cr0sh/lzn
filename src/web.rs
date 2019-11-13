@@ -83,7 +83,7 @@ fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
 
     fn into_list_row(rec: TitleRecord) -> String {
         format!(
-            r#"<a href="/comic/{}/1">{} ({})</a><br>"#,
+            r#"<a href="/list-episodes/{}">{} ({})</a><br>"#,
             rec.id,
             rec.id,
             rec.title.unwrap_or_else(|| String::from("title unknown"))
@@ -105,6 +105,51 @@ fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
             .join(""))))
 }
 
+#[get("/list-episodes/{comic_id}")]
+fn list_episodes(
+    path: web::Path<String>,
+    data: web::Data<Mutex<SqliteConnection>>,
+) -> impl Responder {
+    use crate::schema::lezhin::dsl::*;
+
+    let target_id = path.into_inner();
+    let conn = data.lock().unwrap();
+
+    fn into_list_row((_comic, _episode, _episode_seq): (String, Option<String>, i32)) -> String {
+        format!(
+            r#"<a href="/comic/{}/{}">{} ({})</a><br>"#,
+            _comic,
+            _episode_seq,
+            _episode.unwrap_or_else(|| String::from("title unknown")),
+            _episode_seq,
+        )
+    }
+
+    let eps = lezhin
+        .select((comic, episode, episode_seq))
+        .distinct()
+        .filter(comic.eq(target_id))
+        .order_by(episode_seq)
+        .load(&*conn)
+        .map_err(actix_web::error::ErrorInternalServerError)?
+        .into_iter()
+        .map(into_list_row)
+        .collect::<Vec<String>>()
+        .join("");
+
+    Ok::<_, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
+        r#"<html>
+<head>
+	<meta charset="UTF-8"> 
+</head>
+<body>        
+{}
+</body>
+</html>"#,
+        eps
+    )))
+}
+
 pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Result<()> {
     let data = web::Data::new(Mutex::new(conn));
 
@@ -115,6 +160,7 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Resu
             .service(static_css)
             .service(comic_pics)
             .service(list_comics)
+            .service(list_episodes)
     })
     .bind(addr)?
     .run()?;

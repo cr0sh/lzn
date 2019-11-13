@@ -14,16 +14,24 @@ doc = false
 name = "lzn"
 path = "src/lib.rs"
 
+[features]
+default = []
+
+# merge subcommand
+merge = ["image", "glob"]
+
+# migrate subcommand
+migrate = ["zip"]
+
 [dependencies]
-image = { version = "0.22", default-features = false, features = ["jpeg", "png_codec"] }
-glob = "0.3.0"
+image = { version = "0.22", default-features = false, features = ["jpeg", "png_codec"], optional = true }
+glob = { version = "0.3.0", optional = true }
 structopt = { version = "0.3.4", default-features = false }
 log = "0.4.8"
 env_logger = "0.7.1"
 dirs = "2.0"
-zip = "0.5.3"
-chrono = {version = "0.4.9", features = ["serde"] }
-serde = { version = "1.0", features = ["derive"] }
+zip = { version = "0.5.3", optional = true }
+chrono = "0.4.9"
 bincode = "1.2"
 derive_builder = "0.9.0"
 encoding = "0.2.33"

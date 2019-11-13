@@ -2,6 +2,8 @@ use bincode::Error as BincodeError;
 use diesel::result::Error as DieselError;
 use std::io::Error as IOError;
 use std::num::ParseIntError;
+
+#[cfg(feature = "migrate")]
 use zip::result::ZipError;
 
 use err_derive::Error;
@@ -10,6 +12,7 @@ use err_derive::Error;
 pub enum Error {
     #[error(display = "Bincode serialization/deserialization failure")]
     Bincode(#[error(source)] BincodeError),
+    #[cfg(feature = "migrate")]
     #[error(display = "zip-rs library failure")]
     Zip(#[error(source)] ZipError),
     #[error(display = "std::io failure")]

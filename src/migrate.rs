@@ -4,25 +4,9 @@ use crate::schema;
 use crate::util::try_windows_949;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-// directory
-#[derive(Serialize, Deserialize, Debug)]
-enum DBKey {
-    Dir(Vec<u8>),
-    File(Vec<u8>),
-    Root,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-enum DirValue {
-    // subdirectory names
-    Dirs(Vec<Vec<u8>>),
-    // filenames
-    Files(Vec<Vec<u8>>),
-}
 
 /// Imports image files from zip archive.
 pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<(usize, usize)> {

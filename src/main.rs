@@ -10,7 +10,7 @@ use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
-use lzn::{merge, migrate, util, web};
+use lzn::web;
 
 const DEFAULT_DATABASE_NAME: &str = "lzn.sqlite";
 const DEFAULT_LOG_ENV: &str = "lzn=info,actix_web=info";
@@ -70,7 +70,14 @@ enum Cmd {
 impl Cmd {
     fn process(self) -> Result<(), Box<dyn Error>> {
         match self {
+            #[cfg(not(feature = "merge"))]
+            Cmd::MergeImages { .. } => {
+                unimplemented!("Feature `merge` not enabled for this subcommand")
+            }
+            #[cfg(feature = "merge")]
             Cmd::MergeImages { mut dir, out } => {
+                use lzn::merge;
+
                 dir.push("[0-9]*.jpg");
                 let paths = util::sort_by_name_order(
                     glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)?
@@ -84,6 +91,11 @@ impl Cmd {
                 );
                 merge::merge_paths_vertical(paths)?.save(out)?;
             }
+            #[cfg(not(feature = "merge"))]
+            Cmd::MergeDirs { .. } => {
+                unimplemented!("Feature `merge` not enabled for this subcommand")
+            }
+            #[cfg(feature = "merge")]
             Cmd::MergeDirs { mut dir, out } => {
                 dir.push("[0-9]* - *");
                 log::debug!("merge-dirs path: {}", dir.to_str().unwrap());
@@ -99,7 +111,14 @@ impl Cmd {
                     .process()?;
                 }
             }
+            #[cfg(not(feature = "migrate"))]
+            Cmd::Migrate { .. } => {
+                unimplemented!("Feature `migrate` not enabled for this subcommand")
+            }
+            #[cfg(feature = "merge")]
             Cmd::Migrate { dir, db } => {
+                use lzn::migrate;
+
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
