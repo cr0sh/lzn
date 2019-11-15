@@ -5,6 +5,14 @@ use actix_web::{
 use diesel::prelude::*;
 use std::sync::Mutex;
 
+#[get("/")]
+fn redirect_root() -> impl Responder {
+    HttpResponse::Found()
+        .header(actix_web::http::header::LOCATION, "/list-comics")
+        .finish()
+        .into_body()
+}
+
 #[get("/static/styles.css")]
 fn static_css() -> &'static str {
     include_str!("../static_web/styles.css")
@@ -161,6 +169,7 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Resu
             .service(comic_pics)
             .service(list_comics)
             .service(list_episodes)
+            .service(redirect_root)
     })
     .bind(addr)?
     .run()?;
