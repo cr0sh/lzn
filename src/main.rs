@@ -65,6 +65,18 @@ enum Cmd {
         #[structopt(short, long, default_value = "localhost:8333")]
         addr: String,
     },
+
+    /// Scrap image contents.
+    /// Target comics should be provided in `scrap_targets` table.
+    #[structopt(name = "scrap")]
+    Scrap {
+        /// Database path. If not provided defaults to ~/lzn.sqlite
+        #[structopt(parse(from_os_str))]
+        db: Option<PathBuf>,
+        /// Credential file path. Its first line should be ID and second line should be PW.
+        #[structopt(short, long, parse(from_os_str))]
+        credential: PathBuf,
+    },
 }
 
 impl Cmd {
@@ -191,6 +203,34 @@ impl Cmd {
                 log::info!("Serving {} on {}", dbpath.to_str().unwrap(), addr,);
 
                 web::serve(addr, conn)?;
+            }
+            Cmd::Scrap { db, credential } => {
+                let cred = std::fs::read_to_string(credential)?;
+                let cred_split = cred.split('\n').collect::<Vec<_>>();
+                let (id, pw) = (cred_split[0].trim(), cred_split[1].trim());
+
+                let dbpath = match db {
+                    Some(path) => path,
+                    None => {
+                        let mut path = dirs::home_dir()
+                            .ok_or("Unable to get home directory of current user")?;
+                        path.push(DEFAULT_DATABASE_NAME);
+                        path
+                    }
+                };
+
+                if log::log_enabled!(log::Level::Info) {
+                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
+                }
+
+                let conn = SqliteConnection::establish(
+                    dbpath.to_str().expect("Converting PathBuf to &str failed"),
+                )
+                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+
+                check_migrations(&conn)?;
+
+                lzn::scraper::start(&conn, id, pw)?;
             }
         }
 

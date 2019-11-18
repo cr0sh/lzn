@@ -10,6 +10,15 @@ table! {
 }
 
 table! {
+    scrap_targets (provider, id) {
+        provider -> Text,
+        id -> Text,
+        status -> Integer,
+        last_scrap -> Timestamp,
+    }
+}
+
+table! {
     titles (provider, id) {
         provider -> Text,
         id -> Text,
@@ -17,4 +26,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(lezhin, titles,);
+allow_tables_to_appear_in_same_query!(lezhin, scrap_targets, titles,);

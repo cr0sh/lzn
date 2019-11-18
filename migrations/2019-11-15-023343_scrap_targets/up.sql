@@ -1,0 +1,7 @@
+CREATE TABLE scrap_targets (
+    provider TEXT NOT NULL,
+    id TEXT NOT NULL,
+    status INTEGER NOT NULL DEFAULT 0,
+    last_scrap TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(provider, id COLLATE NOCASE)
+);
