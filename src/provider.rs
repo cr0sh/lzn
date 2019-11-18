@@ -73,13 +73,39 @@ impl std::fmt::Display for Provider {
 
 mod lezhin {
     use crate::error::{Error, Result};
+    use chrono::{serde::ts_seconds, DateTime, Utc};
     use select::document::Document;
     use select::predicate::{And, Attr, Name, Not};
-    use serde_json::Value;
+    use serde::Deserialize;
+    use std::collections::HashMap;
 
     const AUTH_URL: &str =
         "https://www.lezhin.com/ko/login/submit?redirect=http://www.lezhin.com/ko";
     const EPISODE_LIST_URL: &str = "https://www.lezhin.com/ko/comic/";
+
+    /// __LZ_PRODUCT__.product JSON schema
+    #[derive(Deserialize)]
+    #[allow(dead_code)]
+    struct LezhinProduct {
+        display: HashMap<String, String>,
+        alias: String,
+        id: u64,
+        episodes: Vec<EpisodeMetadata>,
+    }
+
+    #[derive(Deserialize)]
+    #[allow(dead_code)]
+    struct EpisodeMetadata {
+        name: String,
+        display: HashMap<String, String>,
+        id: u64,
+        #[serde(rename = "updatedAt")]
+        #[serde(deserialize_with = "ts_seconds::deserialize")]
+        updated_at: DateTime<Utc>,
+        #[serde(rename = "freedAt")]
+        #[serde(deserialize_with = "ts_seconds::deserialize")]
+        freed_at: DateTime<Utc>,
+    }
 
     pub(crate) fn authenticate(client: &reqwest::Client, id: &str, password: &str) -> Result<()> {
         let res = client
@@ -109,7 +135,7 @@ mod lezhin {
         }
     }
 
-    pub(crate) fn fetch_episodes(client: &reqwest::Client, comic_id: &str) -> Result<()> {
+    fn fetch_product_object(client: &reqwest::Client, comic_id: &str) -> Result<LezhinProduct> {
         let doc = Document::from(
             client
                 .get(&(String::from(EPISODE_LIST_URL) + comic_id))
@@ -141,15 +167,9 @@ mod lezhin {
                         text.find(PRODUCT_ATTR_START_TEXT),
                         text.find(PRODUCT_ATTR_END_TEXT),
                     ) {
-                        let json: Value = serde_json::from_reader(
+                        return Ok(serde_json::from_reader(
                             text[(json_start + PRODUCT_ATTR_START_TEXT.len())..json_end].as_bytes(),
-                        )?;
-                        for ep in json["episodes"].as_array().ok_or(Error::StaticStr(
-                            "__LZ_PRODUCT__.product[\"episodes\"] must be array",
-                        ))? {
-                            log::info!("found episode: {}", ep["display"]["title"]);
-                        }
-                        unimplemented!()
+                        )?);
                     } else {
                         eprintln!("not found");
                         continue;
@@ -159,5 +179,13 @@ mod lezhin {
         }
 
         Err(Error::StaticStr("Cannot find LZ_PRODUCT variable"))
+    }
+
+    pub(crate) fn fetch_episodes(client: &reqwest::Client, comic_id: &str) -> Result<()> {
+        let eps = fetch_product_object(client, comic_id)?;
+        for ep in eps.episodes {
+            log::info!("found episode: {}", ep.display["title"]);
+        }
+        unimplemented!()
     }
 }
