@@ -32,6 +32,17 @@ impl Provider {
             Self::Naver => unimplemented!(),
         }
     }
+
+    pub(crate) fn fetch_titles(
+        &self,
+        client: &reqwest::Client,
+        comic_ids: Vec<String>,
+    ) -> Result<Vec<String>> {
+        match self {
+            Self::Lezhin => lezhin::fetch_titles(client, comic_ids),
+            Self::Naver => unimplemented!(),
+        }
+    }
 }
 
 impl ToSql<Text, Sqlite> for Provider {
@@ -73,7 +84,7 @@ impl std::fmt::Display for Provider {
 
 mod lezhin {
     use crate::error::{Error, Result};
-    use chrono::{serde::ts_seconds, DateTime, Utc};
+    use chrono::{offset::TimeZone, serde::ts_seconds, DateTime, Utc};
     use select::document::Document;
     use select::predicate::{And, Attr, Name, Not};
     use serde::Deserialize;
@@ -96,15 +107,34 @@ mod lezhin {
     #[derive(Deserialize)]
     #[allow(dead_code)]
     struct EpisodeMetadata {
+        /// A number with optional prefixes(n,p,e)
         name: String,
+        /// Additional information hashmap for displaying.
+        /// title: A title to be displayed on a list(smaller text layout).
+        /// displayName: A 'real' title to be displayed(bigger text layout).
+        /// type: n(notice, temporary?), g(general), p(prologue), e(epilogue)
         display: HashMap<String, String>,
         id: u64,
         #[serde(rename = "updatedAt")]
         #[serde(deserialize_with = "ts_seconds::deserialize")]
-        updated_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>, // Note: assumed UTC timezone for timestamp integer
         #[serde(rename = "freedAt")]
-        #[serde(deserialize_with = "ts_seconds::deserialize")]
-        freed_at: DateTime<Utc>,
+        #[serde(default)]
+        #[serde(deserialize_with = "deserialize_optional_timestamp")]
+        freed_at: Option<DateTime<Utc>>, // Note: assumed UTC timezone for timestamp integer
+    }
+
+    fn deserialize_optional_timestamp<'de, D>(
+        deserializer: D,
+    ) -> std::result::Result<Option<DateTime<Utc>>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        if let Some(ts) = Option::deserialize(deserializer)? {
+            Ok(Some(Utc.timestamp(ts, 0)))
+        } else {
+            Ok(None)
+        }
     }
 
     pub(crate) fn authenticate(client: &reqwest::Client, id: &str, password: &str) -> Result<()> {
@@ -171,7 +201,9 @@ mod lezhin {
                             text[(json_start + PRODUCT_ATTR_START_TEXT.len())..json_end].as_bytes(),
                         )?);
                     } else {
-                        eprintln!("not found");
+                        log::warn!(
+                            "Found __LZ_PRODUCT__ object, but product attribute does not exist!"
+                        );
                         continue;
                     }
                 }
@@ -187,5 +219,18 @@ mod lezhin {
             log::info!("found episode: {}", ep.display["title"]);
         }
         unimplemented!()
+    }
+
+    pub(crate) fn fetch_titles(
+        client: &reqwest::Client,
+        comic_ids: Vec<String>,
+    ) -> Result<Vec<String>> {
+        comic_ids
+            .iter()
+            .map(|comic_id| {
+                log::debug!("Fetching title for comic ID {}", comic_id);
+                Ok(fetch_product_object(client, &comic_id)?.display["title"].clone())
+            })
+            .collect::<Result<Vec<_>>>()
     }
 }

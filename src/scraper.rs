@@ -38,3 +38,26 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
 
     Ok(())
 }
+
+/// Scrap unknown titles.
+pub fn scrap_titles(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<usize> {
+    use crate::schema::titles::dsl::*;
+
+    let targets = titles
+        .select(id)
+        .filter(provider.eq(Provider::Lezhin))
+        .filter(title.is_null())
+        .load(conn)?;
+
+    let client = Client::builder().cookie_store(true).build()?;
+    Provider::Lezhin.authenticate(&client, id_, pw_)?;
+
+    let titles_ = Provider::Lezhin.fetch_titles(&client, targets.clone())?;
+    for (target, title_) in targets.iter().zip(titles_.iter()) {
+        diesel::update(titles.find((Provider::Lezhin, target)))
+            .set(title.eq(title_))
+            .execute(conn)?;
+    }
+
+    Ok(targets.len())
+}

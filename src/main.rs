@@ -77,6 +77,18 @@ enum Cmd {
         #[structopt(short, long, parse(from_os_str))]
         credential: PathBuf,
     },
+
+    /// Scrap titles.
+    /// Titles will be stored in separate table, `titles`.
+    #[structopt(name = "scrap_titles")]
+    ScrapTitles {
+        /// Database path. If not provided defaults to ~/lzn.sqlite
+        #[structopt(parse(from_os_str))]
+        db: Option<PathBuf>,
+        /// Credential file path. Its first line should be ID and second line should be PW.
+        #[structopt(short, long, parse(from_os_str))]
+        credential: PathBuf,
+    },
 }
 
 impl Cmd {
@@ -231,6 +243,39 @@ impl Cmd {
                 check_migrations(&conn)?;
 
                 lzn::scraper::start(&conn, id, pw)?;
+            }
+
+            Cmd::ScrapTitles { db, credential } => {
+                let cred = std::fs::read_to_string(credential)?;
+                let cred_split = cred.split('\n').collect::<Vec<_>>();
+                let (id, pw) = (cred_split[0].trim(), cred_split[1].trim());
+
+                let dbpath = match db {
+                    Some(path) => path,
+                    None => {
+                        let mut path = dirs::home_dir()
+                            .ok_or("Unable to get home directory of current user")?;
+                        path.push(DEFAULT_DATABASE_NAME);
+                        path
+                    }
+                };
+
+                if log::log_enabled!(log::Level::Info) {
+                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
+                }
+
+                let conn = SqliteConnection::establish(
+                    dbpath.to_str().expect("Converting PathBuf to &str failed"),
+                )
+                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+
+                check_migrations(&conn)?;
+
+                log::info!("Fetching titles");
+                log::info!(
+                    "Complete: {} titles are updated.",
+                    lzn::scraper::scrap_titles(&conn, id, pw)?
+                );
             }
         }
 
