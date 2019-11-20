@@ -3,7 +3,7 @@ use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
 use diesel::serialize::{self, Output, ToSql};
 use diesel::sql_types::Text;
-use diesel::sqlite::Sqlite;
+use diesel::sqlite::{Sqlite, SqliteConnection};
 use std::io::Write;
 
 #[derive(AsExpression, FromSqlRow, Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,9 +26,14 @@ impl Provider {
         }
     }
 
-    pub(crate) fn fetch_episodes(&self, client: &reqwest::Client, comic_id: &str) -> Result<()> {
+    pub(crate) fn fetch_episodes(
+        &self,
+        client: &reqwest::Client,
+        comic_id: &str,
+        conn: &SqliteConnection,
+    ) -> Result<()> {
         match self {
-            Self::Lezhin => lezhin::fetch_episodes(client, comic_id),
+            Self::Lezhin => lezhin::fetch_episodes(client, comic_id, conn),
             Self::Naver => unimplemented!(),
         }
     }
@@ -84,15 +89,19 @@ impl std::fmt::Display for Provider {
 
 mod lezhin {
     use crate::error::{Error, Result};
-    use chrono::{offset::TimeZone, serde::ts_seconds, DateTime, Utc};
+    use chrono::{offset::TimeZone, DateTime, Utc};
+    use diesel::prelude::*;
     use select::document::Document;
     use select::predicate::{And, Attr, Name, Not};
     use serde::Deserialize;
     use std::collections::HashMap;
+    use std::io::Read;
 
     const AUTH_URL: &str =
         "https://www.lezhin.com/ko/login/submit?redirect=http://www.lezhin.com/ko";
     const EPISODE_LIST_URL: &str = "https://www.lezhin.com/ko/comic/";
+    const COMIC_API_URL: &str = "https://www.lezhin.com/api/v2/inventory_groups/comic_viewer_k";
+    const CDN_BASE_URL: &str = "https://cdn.lezhin.com/v2";
 
     /// __LZ_PRODUCT__.product JSON schema
     #[derive(Deserialize)]
@@ -116,7 +125,7 @@ mod lezhin {
         display: HashMap<String, String>,
         id: u64,
         #[serde(rename = "updatedAt")]
-        #[serde(deserialize_with = "ts_seconds::deserialize")]
+        #[serde(deserialize_with = "chrono::serde::ts_milliseconds::deserialize")]
         updated_at: DateTime<Utc>, // Note: assumed UTC timezone for timestamp integer
         #[serde(rename = "freedAt")]
         #[serde(default)]
@@ -131,7 +140,7 @@ mod lezhin {
         D: serde::Deserializer<'de>,
     {
         if let Some(ts) = Option::deserialize(deserializer)? {
-            Ok(Some(Utc.timestamp(ts, 0)))
+            Ok(Some(Utc.timestamp_millis(ts)))
         } else {
             Ok(None)
         }
@@ -159,9 +168,7 @@ mod lezhin {
         if res.url().to_string() == "https://www.lezhin.com/ko" {
             Ok(())
         } else {
-            Err(Error::StaticStr(
-                "Authentication failure: incorrect response url",
-            ))
+            Err("Authentication failure: incorrect response url")?
         }
     }
 
@@ -213,12 +220,162 @@ mod lezhin {
         Err(Error::StaticStr("Cannot find LZ_PRODUCT variable"))
     }
 
-    pub(crate) fn fetch_episodes(client: &reqwest::Client, comic_id: &str) -> Result<()> {
+    pub(crate) fn fetch_episodes(
+        client: &reqwest::Client,
+        comic_id: &str,
+        conn: &SqliteConnection,
+    ) -> Result<()> {
+        use crate::models::{ComicRecord, TitleRecord};
+        use crate::schema::lezhin::dsl::*;
+        use crate::schema::titles::dsl::*;
+
         let eps = fetch_product_object(client, comic_id)?;
-        for ep in eps.episodes {
-            log::info!("found episode: {}", ep.display["title"]);
+        let rec = TitleRecord {
+            provider: super::Provider::Lezhin,
+            id: comic_id.to_owned(),
+            title: Some(eps.display["title"].to_owned()),
+        };
+
+        if titles
+            .filter(provider.eq(&rec.provider))
+            .filter(id.eq(&rec.id))
+            .load::<TitleRecord>(conn)?
+            .len()
+            > 0
+        {
+            diesel::update(
+                titles
+                    .filter(provider.eq(rec.provider))
+                    .filter(id.eq(rec.id)),
+            )
+            .set(title.eq(rec.title))
+            .execute(conn)?;
+        } else {
+            diesel::insert_into(titles).values(&rec).execute(conn)?;
         }
-        unimplemented!()
+
+        // API response shows recent episodes first, so it must be reversed order
+        for (episode_idx, ep) in eps
+            .episodes
+            .iter()
+            .rev()
+            .filter(|ep| match ep.display.get("type").map(String::as_ref) {
+                Some("n") => {
+                    log::info!("Skipping notice episode {}", ep.display["title"]);
+                    false
+                }
+                Some(_) => true,
+                None => {
+                    log::warn!(
+                        r#"Expected string for display["type"] in episode {}"#,
+                        ep.display["title"]
+                    );
+                    false
+                }
+            })
+            .enumerate()
+        {
+            if lezhin
+                .filter(comic.eq(comic_id.to_owned()))
+                .filter(episode_seq.eq(episode_idx as i32 + 1))
+                .load::<ComicRecord>(conn)?
+                .len()
+                > 0
+            {
+                log::info!(
+                    "Episode sequence {} (title {}) is already scraped. Skipping.",
+                    episode_idx as i32 + 1,
+                    ep.display["title"]
+                );
+                continue;
+            }
+
+            if ep.freed_at.unwrap_or_else(|| chrono::Utc::now()) > chrono::Utc::now() {
+                log::info!("Skipping unavailble episode: {}", ep.display["title"]);
+                continue;
+            }
+
+            log::info!("Fetching episode: {}", ep.display["title"]);
+            let images = fetch_episode(client, comic_id, &ep)?;
+
+            let recs = images
+                .iter()
+                .enumerate()
+                .map(|(idx, image)| {
+                    ComicRecord {
+                        comic: comic_id.to_owned(),
+                        episode_seq: episode_idx as i32 + 1, // 1-based index
+                        episode: Some(ep.display["title"].clone()),
+                        picture_seq: idx as i32 + 1, // 1-based index
+                        picture: Some(image.to_owned()),
+                        updated_at: chrono::Local::now().naive_local(),
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            diesel::insert_into(lezhin)
+                .values(&recs)
+                .execute(conn)
+                .unwrap_or_else(|e| {
+                    log::error!("Cannot insert images into database: {}", e);
+                    0
+                });
+        }
+
+        Ok(())
+    }
+
+    fn fetch_episode(
+        client: &reqwest::Client,
+        comic_id: &str,
+        episode: &EpisodeMetadata,
+    ) -> Result<Vec<Vec<u8>>> {
+        let json: serde_json::Value = client
+            .get(
+                reqwest::Url::parse_with_params(
+                    COMIC_API_URL,
+                    &[
+                        ("alias", comic_id),
+                        ("name", episode.name.as_ref()),
+                        ("preload", "true"),
+                        ("type", "comic_episode"),
+                    ],
+                )
+                .unwrap(),
+            )
+            .send()?
+            .json()?;
+
+        if json["code"]
+            .as_u64()
+            .ok_or("Expected integer code for API response")?
+            != 0
+        {
+            log::error!(
+                "Lezhin API returned non-zero code {:?}",
+                json["code"].as_u64()
+            );
+            Err("Lezhin API returned non-zero code")?
+        }
+
+        json["data"]["extra"]["episode"]["scrollsInfo"]
+            .as_array()
+            .ok_or("Expected list of image items")?
+            .iter()
+            .map(|entry| {
+                let url = String::from(CDN_BASE_URL)
+                    + entry["path"]
+                        .as_str()
+                        .ok_or("Expected string path for image item")?;
+
+                let resp = client.get::<&str>(url.as_ref()).send()?;
+                if resp.status() != reqwest::StatusCode::OK {
+                    Err("Lezhin API returned non-OK result for image request".into())
+                } else {
+                    Ok(resp.bytes().collect::<Result<Vec<_>, _>>()?)
+                }
+            })
+            .collect::<Result<Vec<_>>>()
     }
 
     pub(crate) fn fetch_titles(

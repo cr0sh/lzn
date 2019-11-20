@@ -242,7 +242,9 @@ impl Cmd {
 
                 check_migrations(&conn)?;
 
+                log::info!("Scraping started");
                 lzn::scraper::start(&conn, id, pw)?;
+                log::info!("Scraping complete");
             }
 
             Cmd::ScrapTitles { db, credential } => {

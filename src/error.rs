@@ -1,6 +1,7 @@
 use bincode::Error as BincodeError;
 use diesel::result::Error as DieselError;
 use reqwest::Error as ReqwestError;
+use reqwest::UrlError as URLError;
 use serde_json::Error as JSONError;
 use std::io::Error as IOError;
 use std::num::ParseIntError;
@@ -10,6 +11,7 @@ use zip::result::ZipError;
 
 use err_derive::Error;
 
+// TODO: Rename this to ErrorKind and use Error struct, consisting context string and ErrorKind
 #[derive(Debug, Error)]
 pub enum Error {
     #[error(display = "Bincode serialization/deserialization failure")]
@@ -31,6 +33,16 @@ pub enum Error {
     StaticStr(&'static str),
     #[error(display = "JSON Serialization/Deserialization failure")]
     Serde(#[error(source)] JSONError),
+    #[error(display = "URL parse error")]
+    URL(#[error(source)] URLError),
+    #[error(display = "Currently unavailable episode")]
+    UnavailableEpisode,
+}
+
+impl From<&'static str> for Error {
+    fn from(s: &'static str) -> Self {
+        Self::StaticStr(s)
+    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

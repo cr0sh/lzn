@@ -33,7 +33,10 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
 
         log::info!("Scraping target {}/{}", target.provider, target.id);
 
-        target.provider.fetch_episodes(&client, &target.id)?;
+        target.provider.fetch_episodes(&client, &target.id, &conn)?;
+        diesel::update(scrap_targets.find((target.provider, target.id)))
+            .set(last_scrap.eq(chrono::Local::now().naive_local()))
+            .execute(conn)?;
     }
 
     Ok(())
