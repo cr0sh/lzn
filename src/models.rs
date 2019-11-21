@@ -1,5 +1,5 @@
 use crate::provider::Provider;
-use crate::schema::{lezhin, scraping_targets, titles};
+use crate::schema::{comics, scraping_targets, titles};
 use chrono::NaiveDateTime;
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
@@ -9,13 +9,14 @@ use diesel::sqlite::Sqlite;
 use std::io::Write;
 
 #[derive(Queryable, Insertable, Debug)]
-#[table_name = "lezhin"]
+#[table_name = "comics"]
 pub(crate) struct ComicRecord {
-    pub(crate) comic: String,
+    pub(crate) provider: Provider,
+    pub(crate) comic_id: String,
     pub(crate) episode_seq: i32,
-    pub(crate) episode: Option<String>,
-    pub(crate) picture_seq: i32,
-    pub(crate) picture: Option<Vec<u8>>,
+    pub(crate) episode_name: Option<String>,
+    pub(crate) image_seq: i32,
+    pub(crate) image: Vec<u8>,
     pub(crate) updated_at: NaiveDateTime,
 }
 

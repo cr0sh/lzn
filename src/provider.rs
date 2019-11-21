@@ -222,22 +222,22 @@ mod lezhin {
 
     pub(crate) fn fetch_episodes(
         client: &reqwest::Client,
-        comic_id: &str,
+        comic_id_: &str,
         conn: &SqliteConnection,
     ) -> Result<()> {
         use crate::models::{ComicRecord, TitleRecord};
-        use crate::schema::lezhin::dsl::*;
+        use crate::schema::comics::dsl::*;
         use crate::schema::titles::dsl::*;
 
-        let eps = fetch_product_object(client, comic_id)?;
+        let eps = fetch_product_object(client, comic_id_)?;
         let rec = TitleRecord {
             provider: super::Provider::Lezhin,
-            id: comic_id.to_owned(),
+            id: comic_id_.to_owned(),
             title: Some(eps.display["title"].to_owned()),
         };
 
         if titles
-            .filter(provider.eq(&rec.provider))
+            .filter(crate::schema::titles::dsl::provider.eq(&rec.provider))
             .filter(id.eq(&rec.id))
             .load::<TitleRecord>(conn)?
             .len()
@@ -245,7 +245,7 @@ mod lezhin {
         {
             diesel::update(
                 titles
-                    .filter(provider.eq(rec.provider))
+                    .filter(crate::schema::titles::dsl::provider.eq(rec.provider))
                     .filter(id.eq(rec.id)),
             )
             .set(title.eq(rec.title))
@@ -275,8 +275,8 @@ mod lezhin {
             })
             .enumerate()
         {
-            if lezhin
-                .filter(comic.eq(comic_id.to_owned()))
+            if comics
+                .filter(comic_id.eq(comic_id.to_owned()))
                 .filter(episode_seq.eq(episode_idx as i32 + 1))
                 .load::<ComicRecord>(conn)?
                 .len()
@@ -296,24 +296,25 @@ mod lezhin {
             }
 
             log::info!("Fetching episode: {}", ep.display["title"]);
-            let images = fetch_episode(client, comic_id, &ep)?;
+            let images = fetch_episode(client, comic_id_, &ep)?;
 
             let recs = images
                 .iter()
                 .enumerate()
-                .map(|(idx, image)| {
+                .map(|(idx, img)| {
                     ComicRecord {
-                        comic: comic_id.to_owned(),
+                        provider: super::Provider::Lezhin,
+                        comic_id: comic_id_.to_owned(),
                         episode_seq: episode_idx as i32 + 1, // 1-based index
-                        episode: Some(ep.display["title"].clone()),
-                        picture_seq: idx as i32 + 1, // 1-based index
-                        picture: Some(image.to_owned()),
+                        episode_name: Some(ep.display["title"].clone()),
+                        image_seq: idx as i32 + 1, // 1-based index
+                        image: img.to_owned(),
                         updated_at: chrono::Local::now().naive_local(),
                     }
                 })
                 .collect::<Vec<_>>();
 
-            diesel::insert_into(lezhin)
+            diesel::insert_into(comics)
                 .values(&recs)
                 .execute(conn)
                 .unwrap_or_else(|e| {

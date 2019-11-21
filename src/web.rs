@@ -24,27 +24,24 @@ fn comic_pics(
     data: web::Data<Mutex<SqliteConnection>>,
 ) -> impl Responder {
     use crate::models::ComicRecord;
-    use crate::schema::lezhin::dsl::*;
+    use crate::schema::comics::dsl::*;
 
-    let (comic_id, episode_id) = path.into_inner();
+    let (comic_id_, episode_id) = path.into_inner();
     let conn = data.lock().unwrap();
 
-    let recs = lezhin
-        .filter(comic.eq(comic_id))
+    let recs = comics
+        .filter(comic_id.eq(comic_id_))
         .filter(episode_seq.eq(episode_id))
-        .order_by(picture_seq)
+        .order_by(image_seq)
         .load::<ComicRecord>(&*conn)
         .map_err(actix_web::error::ErrorInternalServerError)?;
 
     fn into_embedded_image(rec: &ComicRecord) -> String {
-        match &rec.picture {
-            Some(inner) => format!(
-                r#"<img alt="image sequence {}" src="data:image/jpg;base64,{}">"#,
-                rec.picture_seq,
-                base64::encode(&inner)
-            ),
-            None => format!("image sequence {} does not have content", rec.picture_seq),
-        }
+        format!(
+            r#"<img alt="image sequence {}" src="data:image/jpg;base64,{}">"#,
+            rec.image_seq,
+            base64::encode(&rec.image)
+        )
     }
 
     let resp = recs
@@ -68,7 +65,7 @@ Found {} records, response size {}MiB, title {}<br />
             recs.len(),
             f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
             recs.iter()
-                .map(|x| x.episode.clone())
+                .map(|x| x.episode_name.clone())
                 .flatten()
                 .next()
                 .unwrap_or_else(|| String::from("(unknown)")),
@@ -118,7 +115,7 @@ fn list_episodes(
     path: web::Path<String>,
     data: web::Data<Mutex<SqliteConnection>>,
 ) -> impl Responder {
-    use crate::schema::lezhin::dsl::*;
+    use crate::schema::comics::dsl::*;
 
     let target_id = path.into_inner();
     let conn = data.lock().unwrap();
@@ -133,10 +130,10 @@ fn list_episodes(
         )
     }
 
-    let eps = lezhin
-        .select((comic, episode, episode_seq))
+    let eps = comics
+        .select((comic_id, episode_name, episode_seq))
         .distinct()
-        .filter(comic.eq(target_id))
+        .filter(comic_id.eq(target_id))
         .order_by(episode_seq)
         .load(&*conn)
         .map_err(actix_web::error::ErrorInternalServerError)?

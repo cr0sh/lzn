@@ -1,10 +1,11 @@
 table! {
-    lezhin (comic, episode_seq, picture_seq) {
-        comic -> Text,
+    comics (provider, comic_id, episode_seq, image_seq) {
+        provider -> Text,
+        comic_id -> Text,
         episode_seq -> Integer,
-        episode -> Nullable<Text>,
-        picture_seq -> Integer,
-        picture -> Nullable<Binary>,
+        episode_name -> Nullable<Text>,
+        image_seq -> Integer,
+        image -> Binary,
         updated_at -> Timestamp,
     }
 }
@@ -27,7 +28,7 @@ table! {
 }
 
 allow_tables_to_appear_in_same_query!(
-    lezhin,
+    comics,
     scraping_targets,
     titles,
 );
