@@ -15,7 +15,7 @@ table! {
         provider -> Text,
         id -> Text,
         status -> Integer,
-        last_scrap -> Timestamp,
+        last_scraping -> Timestamp,
     }
 }
 

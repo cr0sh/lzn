@@ -64,5 +64,5 @@ pub(crate) struct ScrapingTarget {
     pub(crate) provider: Provider,
     pub(crate) id: String,
     pub(crate) status: ScrapingStatus,
-    pub(crate) last_scrap: NaiveDateTime,
+    pub(crate) last_scraping: NaiveDateTime,
 }

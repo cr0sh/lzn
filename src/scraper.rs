@@ -36,7 +36,7 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
 
         target.provider.fetch_episodes(&client, &target.id, &conn)?;
         diesel::update(scraping_targets.find((target.provider, target.id)))
-            .set(last_scrap.eq(chrono::Local::now().naive_local()))
+            .set(last_scraping.eq(chrono::Local::now().naive_local()))
             .execute(conn)?;
     }
 
