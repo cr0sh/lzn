@@ -289,8 +289,9 @@ embed_migrations!("migrations");
 
 fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
     if any_pending_migrations(conn)? {
-        log::warn!("Some migrations are not yet applied.");
-        log::warn!("Please run `lzn setup` to apply these migrations.")
+        log::error!("Some migrations are not yet applied.");
+        log::error!("You must run `lzn setup` to apply these migrations.");
+        std::process::exit(1);
     }
     Ok(())
 }
