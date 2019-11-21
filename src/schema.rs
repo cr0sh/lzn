@@ -10,7 +10,7 @@ table! {
 }
 
 table! {
-    scrap_targets (provider, id) {
+    scraping_targets (provider, id) {
         provider -> Text,
         id -> Text,
         status -> Integer,
@@ -26,4 +26,8 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(lezhin, scrap_targets, titles,);
+allow_tables_to_appear_in_same_query!(
+    lezhin,
+    scraping_targets,
+    titles,
+);

@@ -1,5 +1,5 @@
 use crate::provider::Provider;
-use crate::schema::{lezhin, scrap_targets, titles};
+use crate::schema::{lezhin, scraping_targets, titles};
 use chrono::NaiveDateTime;
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
@@ -29,13 +29,13 @@ pub(crate) struct TitleRecord {
 
 #[derive(AsExpression, FromSqlRow, PartialEq, Debug, Clone)]
 #[sql_type = "Integer"]
-pub(crate) enum ScrapStatus {
-    Enabled,  // Target to be scraped; will not scrap existing episodes
+pub(crate) enum ScrapingStatus {
+    Enabled,  // Target to be scraped; will not scrape existing episodes
     Disabled, // Target temporarily disabled
-    Complete, // Full-scrap complete; no need to scrap again
+    Complete, // Full-scraping complete; no need to scrape again
 }
 
-impl ToSql<Integer, Sqlite> for ScrapStatus {
+impl ToSql<Integer, Sqlite> for ScrapingStatus {
     fn to_sql<W: Write>(&self, out: &mut Output<W, Sqlite>) -> serialize::Result {
         let value = match self {
             Self::Enabled => 0,
@@ -46,7 +46,7 @@ impl ToSql<Integer, Sqlite> for ScrapStatus {
     }
 }
 
-impl FromSql<Integer, Sqlite> for ScrapStatus {
+impl FromSql<Integer, Sqlite> for ScrapingStatus {
     fn from_sql(bytes: Option<&<Sqlite as Backend>::RawValue>) -> deserialize::Result<Self> {
         match <i32 as FromSql<Integer, Sqlite>>::from_sql(bytes)? {
             0 => Ok(Self::Enabled),
@@ -58,10 +58,10 @@ impl FromSql<Integer, Sqlite> for ScrapStatus {
 }
 
 #[derive(Queryable, Insertable, Debug)]
-#[table_name = "scrap_targets"]
-pub(crate) struct ScrapTarget {
+#[table_name = "scraping_targets"]
+pub(crate) struct ScrapingTarget {
     pub(crate) provider: Provider,
     pub(crate) id: String,
-    pub(crate) status: ScrapStatus,
+    pub(crate) status: ScrapingStatus,
     pub(crate) last_scrap: NaiveDateTime,
 }

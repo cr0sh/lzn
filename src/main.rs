@@ -66,10 +66,10 @@ enum Cmd {
         addr: String,
     },
 
-    /// Scrap image contents.
-    /// Target comics should be provided in `scrap_targets` table.
-    #[structopt(name = "scrap")]
-    Scrap {
+    /// Scrape image contents.
+    /// Target comics should be provided in `scraping_targets` table.
+    #[structopt(name = "scrape")]
+    Scrape {
         /// Database path. If not provided defaults to ~/lzn.sqlite
         #[structopt(parse(from_os_str))]
         db: Option<PathBuf>,
@@ -78,10 +78,10 @@ enum Cmd {
         credential: PathBuf,
     },
 
-    /// Scrap titles.
+    /// Scrape titles.
     /// Titles will be stored in separate table, `titles`.
-    #[structopt(name = "scrap_titles")]
-    ScrapTitles {
+    #[structopt(name = "scrape_titles")]
+    ScrapeTitles {
         /// Database path. If not provided defaults to ~/lzn.sqlite
         #[structopt(parse(from_os_str))]
         db: Option<PathBuf>,
@@ -216,7 +216,7 @@ impl Cmd {
 
                 web::serve(addr, conn)?;
             }
-            Cmd::Scrap { db, credential } => {
+            Cmd::Scrape { db, credential } => {
                 let cred = std::fs::read_to_string(credential)?;
                 let cred_split = cred.split('\n').collect::<Vec<_>>();
                 let (id, pw) = (cred_split[0].trim(), cred_split[1].trim());
@@ -247,7 +247,7 @@ impl Cmd {
                 log::info!("Scraping complete");
             }
 
-            Cmd::ScrapTitles { db, credential } => {
+            Cmd::ScrapeTitles { db, credential } => {
                 let cred = std::fs::read_to_string(credential)?;
                 let cred_split = cred.split('\n').collect::<Vec<_>>();
                 let (id, pw) = (cred_split[0].trim(), cred_split[1].trim());
