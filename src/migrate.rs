@@ -47,11 +47,12 @@ pub fn migrate_zip(conn: &SqliteConnection, dir: PathBuf) -> Result<(usize, usiz
         file.read_to_end(&mut picture)?;
 
         let record = ComicRecord {
-            comic,
+            provider: crate::provider::Provider::Lezhin,
+            comic_id: comic,
             episode_seq,
-            episode: Some(episode),
-            picture_seq,
-            picture: Some(picture),
+            episode_name: Some(episode),
+            image_seq: picture_seq,
+            image: picture,
             updated_at: chrono::Local::now().naive_local(),
         };
         if let Err(e) = diesel::insert_into(schema::lezhin::table)

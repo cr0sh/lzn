@@ -11,7 +11,7 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
     let targets: Vec<crate::models::ScrapingTarget> =
         scraping_targets.load::<ScrapingTarget>(conn)?;
     let client = Client::builder().cookie_store(true).build()?;
-    Provider::Lezhin.authenticate(&client, id_, pw_)?;
+    Provider::Lezhin.authenticate(&client, id_, pw_)?; // TODO: Authenticate client for other providers
     log::debug!(
         "Client authentication succeeded for provider {}",
         Provider::Lezhin
@@ -26,10 +26,6 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
                 target.status
             );
             continue;
-        }
-
-        if target.provider != Provider::Lezhin {
-            unimplemented!() // TODO
         }
 
         log::info!("Scraping target {}/{}", target.provider, target.id);

@@ -7,6 +7,7 @@ use diesel::sqlite::{Sqlite, SqliteConnection};
 use std::io::Write;
 
 mod lezhin;
+mod naver;
 
 #[derive(AsExpression, FromSqlRow, Debug, Clone, Copy, PartialEq, Eq)]
 #[sql_type = "Text"]
@@ -24,7 +25,7 @@ impl Provider {
     ) -> Result<()> {
         match self {
             Self::Lezhin => lezhin::authenticate(client, id, password),
-            Self::Naver => unimplemented!(),
+            Self::Naver => Ok(()), // authentication is not required
         }
     }
 
@@ -36,7 +37,7 @@ impl Provider {
     ) -> Result<()> {
         match self {
             Self::Lezhin => lezhin::fetch_episodes(client, comic_id, conn),
-            Self::Naver => unimplemented!(),
+            Self::Naver => naver::fetch_episodes(client, comic_id, conn),
         }
     }
 
