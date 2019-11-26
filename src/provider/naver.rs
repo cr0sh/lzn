@@ -239,5 +239,5 @@ pub(crate) fn fetch_episodes(
             });
     }
 
-    unimplemented!()
+    Ok(())
 }
