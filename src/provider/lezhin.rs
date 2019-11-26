@@ -185,6 +185,7 @@ pub(crate) fn fetch_episodes(
         .enumerate()
     {
         if comics
+            .filter(crate::schema::comics::dsl::provider.eq(super::Provider::Lezhin))
             .filter(comic_id.eq(comic_id.to_owned()))
             .filter(episode_seq.eq(episode_idx as i32 + 1))
             .load::<ComicRecord>(conn)?
