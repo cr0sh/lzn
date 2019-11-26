@@ -90,8 +90,8 @@ fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
         format!(
             r#"<a href="/list-episodes/{}">{} ({})</a><br>"#,
             rec.id,
-            rec.id,
             rec.title.unwrap_or_else(|| String::from("title unknown"))
+            rec.id,
         )
     }
 
