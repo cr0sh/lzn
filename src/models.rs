@@ -1,5 +1,5 @@
 use crate::provider::Provider;
-use crate::schema::{comics, scraping_targets, titles};
+use crate::schema::{comics, episodes, scraping_targets, titles};
 use chrono::NaiveDateTime;
 use diesel::backend::Backend;
 use diesel::deserialize::{self, FromSql};
@@ -26,6 +26,20 @@ pub(crate) struct TitleRecord {
     pub(crate) provider: Provider,
     pub(crate) id: String,
     pub(crate) title: Option<String>,
+}
+#[derive(Queryable, Insertable, Debug)]
+#[table_name = "episodes"]
+pub(crate) struct EpisodeRecord {
+    pub(crate) provider: Provider,
+    #[column_name = "id"]
+    pub(crate) comic_id: String,
+    #[column_name = "seq"]
+    pub(crate) episode_seq: i32,
+    pub(crate) title: Option<String>,
+    #[column_name = "images_count"]
+    pub(crate) images_cnt: i32,
+    pub(crate) created_at: NaiveDateTime,
+    pub(crate) last_update: NaiveDateTime,
 }
 
 #[derive(AsExpression, FromSqlRow, PartialEq, Debug, Clone)]

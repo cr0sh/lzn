@@ -11,6 +11,18 @@ table! {
 }
 
 table! {
+    episodes (provider, id, seq) {
+        provider -> Text,
+        id -> Text,
+        seq -> Integer,
+        title -> Nullable<Text>,
+        images_count -> Integer,
+        created_at -> Timestamp,
+        last_update -> Timestamp,
+    }
+}
+
+table! {
     scraping_targets (provider, id) {
         provider -> Text,
         id -> Text,
@@ -29,6 +41,7 @@ table! {
 
 allow_tables_to_appear_in_same_query!(
     comics,
+    episodes,
     scraping_targets,
     titles,
 );

@@ -115,26 +115,25 @@ fn list_episodes(
     path: web::Path<String>,
     data: web::Data<Mutex<SqliteConnection>>,
 ) -> impl Responder {
-    use crate::schema::comics::dsl::*;
+    use crate::schema::episodes::dsl::*;
 
     let target_id = path.into_inner();
     let conn = data.lock().unwrap();
 
     fn into_list_row((_comic, _episode, _episode_seq): (String, Option<String>, i32)) -> String {
         format!(
-            r#"<a href="/comic/{}/{}">{} ({})</a><br>"#,
+            r#"<a href="/comic/{}/{}">{}</a><br>"#,
             _comic,
             _episode_seq,
             _episode.unwrap_or_else(|| String::from("title unknown")),
-            _episode_seq,
         )
     }
 
-    let eps = comics
-        .select((comic_id, episode_name, episode_seq))
+    let eps = episodes
+        .select((id, title, seq))
         .distinct()
-        .filter(comic_id.eq(target_id))
-        .order_by(episode_seq)
+        .filter(id.eq(target_id))
+        .order_by(seq)
         .load(&*conn)
         .map_err(actix_web::error::ErrorInternalServerError)?
         .into_iter()

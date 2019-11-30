@@ -162,8 +162,9 @@ pub(crate) fn fetch_episodes(
     comic_id_: &str,
     conn: &SqliteConnection,
 ) -> Result<()> {
-    use crate::models::{ComicRecord, TitleRecord};
+    use crate::models::{ComicRecord, EpisodeRecord, TitleRecord};
     use crate::schema::comics::dsl::*;
+    use crate::schema::episodes::dsl::*;
     use crate::schema::titles::dsl::*;
 
     let (comic_title, first_list) =
@@ -181,7 +182,7 @@ pub(crate) fn fetch_episodes(
 
     if titles
         .filter(crate::schema::titles::dsl::provider.eq(&rec.provider))
-        .filter(id.eq(&rec.id))
+        .filter(crate::schema::titles::dsl::id.eq(&rec.id))
         .load::<TitleRecord>(conn)?
         .len()
         > 0
@@ -189,9 +190,9 @@ pub(crate) fn fetch_episodes(
         diesel::update(
             titles
                 .filter(crate::schema::titles::dsl::provider.eq(rec.provider))
-                .filter(id.eq(rec.id)),
+                .filter(crate::schema::titles::dsl::id.eq(rec.id)),
         )
-        .set(title.eq(rec.title))
+        .set(crate::schema::titles::dsl::title.eq(rec.title))
         .execute(conn)?;
     } else {
         diesel::insert_into(titles).values(&rec).execute(conn)?;
@@ -232,6 +233,22 @@ pub(crate) fn fetch_episodes(
 
         diesel::insert_into(comics)
             .values(&recs)
+            .execute(conn)
+            .unwrap_or_else(|e| {
+                log::error!("Cannot insert images into database: {}", e);
+                0
+            });
+
+        diesel::insert_into(episodes)
+            .values(&EpisodeRecord {
+                provider: super::Provider::Naver,
+                comic_id: comic_id_.to_owned(),
+                episode_seq: ep_num as i32,
+                title: Some(title_.clone()),
+                images_cnt: recs.len() as i32,
+                created_at: chrono::Local::now().naive_local(),
+                last_update: chrono::Local::now().naive_local(),
+            })
             .execute(conn)
             .unwrap_or_else(|e| {
                 log::error!("Cannot insert images into database: {}", e);
