@@ -190,7 +190,7 @@ impl Cmd {
                 )
                 .map_err(|e| format!("Cannot connect database: {:?}", e))?;
 
-                run_pending_migrations(&conn)?;
+                embedded_migrations::run_with_output(&conn, &mut std::io::stdout())?;
 
                 log::info!("Setup succeeded.");
             }
@@ -285,14 +285,23 @@ impl Cmd {
     }
 }
 
-embed_migrations!("migrations");
+embed_migrations!();
 
+#[cfg(debug_assertions)]
 fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
     if any_pending_migrations(conn)? {
         log::error!("Some migrations are not yet applied.");
         log::error!("You must run `lzn setup` to apply these migrations.");
         std::process::exit(1);
     }
+    Ok(())
+}
+
+#[cfg(not(debug_assertions))]
+fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
+    log::warn!("Checking migrations on release mode is disabled");
+    log::warn!("due to Diesel's migration embedding feature limitations.");
+    log::warn!("If error occurs while accessing DB, please try to run `lzn setup`.");
     Ok(())
 }
 
