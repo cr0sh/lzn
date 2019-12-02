@@ -1,3 +1,3 @@
 [target.arm-unknown-linux-gnueabihf]
 debug = false
-rustflags = ["-C" "debug=false" "-C" "panic=abort"]
+rustflags = ["-C", "debug=false", "-C", "panic=abort"]
