@@ -3,9 +3,7 @@ extern crate diesel_migrations;
 
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
-use diesel_migrations::{
-    any_pending_migrations, embed_migrations, run_pending_migrations, RunMigrationsError,
-};
+use diesel_migrations::{embed_migrations, RunMigrationsError};
 use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -289,6 +287,7 @@ embed_migrations!();
 
 #[cfg(debug_assertions)]
 fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
+    use diesel_migrations::any_pending_migrations;
     if any_pending_migrations(conn)? {
         log::error!("Some migrations are not yet applied.");
         log::error!("You must run `lzn setup` to apply these migrations.");
@@ -298,7 +297,7 @@ fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
 }
 
 #[cfg(not(debug_assertions))]
-fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
+fn check_migrations(_conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
     log::warn!("Checking migrations on release mode is disabled");
     log::warn!("due to Diesel's migration embedding feature limitations.");
     log::warn!("If error occurs while accessing DB, please try to run `lzn setup`.");
