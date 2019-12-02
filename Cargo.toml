@@ -56,7 +56,5 @@ harness = false
 
 [profile.release]
 debug = true
-
-[target.arm-unknown-linux-gnueabihf]
-debug = false
 lto = true
+
