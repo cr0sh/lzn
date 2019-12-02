@@ -300,7 +300,7 @@ fn check_migrations(conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
 fn check_migrations(_conn: &SqliteConnection) -> Result<(), RunMigrationsError> {
     log::warn!("Checking migrations on release mode is disabled");
     log::warn!("due to Diesel's migration embedding feature limitations.");
-    log::warn!("If error occurs while accessing DB, please try to run `lzn setup`.");
+    log::warn!("If an error occurs while accessing DB, please try to run `lzn setup`.");
     Ok(())
 }
 
