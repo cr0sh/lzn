@@ -23,7 +23,7 @@ default = []
 merge = ["image", "glob"]
 
 # migrate subcommand
-migrate = ["zip"]
+migrate = []
 
 [dependencies]
 image = { version = "0.22", default-features = false, features = ["jpeg", "png_codec"], optional = true }
@@ -32,7 +32,7 @@ structopt = { version = "0.3.4", default-features = false }
 log = "0.4.8"
 env_logger = "0.7.1"
 dirs = "2.0"
-zip = { version = "0.5.3", optional = true }
+zip = "0.5.3"
 chrono = { version = "0.4.9", features = ["serde"] }
 bincode = "1.2"
 derive_builder = "0.9.0"
@@ -40,12 +40,12 @@ encoding = "0.2.33"
 err-derive = "0.2.1"
 diesel = { version = "1.4", default-features = false, features = ["sqlite", "chrono"] }
 diesel_migrations = "1.4.0"
-actix-web = "1.0.9"
 base64 = "0.11.0"
 reqwest = "0.9.22"
 select = "0.4.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tiny_http = "0.6.2"
 
 [dev-dependencies]
 criterion = "0.3.0"

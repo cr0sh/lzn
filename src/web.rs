@@ -1,40 +1,35 @@
 use crate::error::Result;
-use actix_web::{
-    get, middleware, web, App, Error as ActixError, HttpResponse, HttpServer, Responder,
-};
 use diesel::prelude::*;
+use std::error::Error;
+use std::io::{Cursor, Empty};
+use std::str::FromStr;
 use std::sync::Mutex;
+use tiny_http::{Header, Response, StatusCode};
 
-#[get("/")]
-fn redirect_root() -> impl Responder {
-    HttpResponse::Found()
-        .header(actix_web::http::header::LOCATION, "/list-comics")
-        .finish()
-        .into_body()
+type BytesResponse = Response<Cursor<Vec<u8>>>;
+
+fn redirect_root() -> Response<Empty> {
+    Response::empty(StatusCode(301))
+        .with_header(Header::from_str("Location: /list-comics").unwrap())
 }
 
-#[get("/static/styles.css")]
-fn static_css() -> &'static str {
-    include_str!("../static_web/styles.css")
+fn static_css() -> BytesResponse {
+    Response::from_string(include_str!("../static_web/styles.css"))
 }
 
-#[get("/comic/{comic_id}/{episode_id}")]
 fn comic_pics(
-    path: web::Path<(String, i32)>,
-    data: web::Data<Mutex<SqliteConnection>>,
-) -> impl Responder {
+    comic_id_: String,
+    episode_id: i32,
+    conn: &SqliteConnection,
+) -> Result<BytesResponse> {
     use crate::models::ComicRecord;
     use crate::schema::comics::dsl::*;
-
-    let (comic_id_, episode_id) = path.into_inner();
-    let conn = data.lock().unwrap();
 
     let recs = comics
         .filter(comic_id.eq(comic_id_))
         .filter(episode_seq.eq(episode_id))
         .order_by(image_seq)
-        .load::<ComicRecord>(&*conn)
-        .map_err(actix_web::error::ErrorInternalServerError)?;
+        .load::<ComicRecord>(&*conn)?;
 
     fn into_embedded_image(rec: &ComicRecord) -> String {
         format!(
@@ -50,8 +45,8 @@ fn comic_pics(
         .collect::<Vec<String>>()
         .join("");
 
-    Ok::<HttpResponse, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
-            r#"<html>
+    Ok(Response::from_string(format!(
+        r#"<html>
 <head>
     <meta charset="UTF-8"> 
     <link rel="stylesheet" href="/static/styles.css">
@@ -62,29 +57,24 @@ Found {} records, response size {}MiB, title {}<br />
     <a class="next-link" href="{}">Next</a>
 </div>
 </html>"#,
-            recs.len(),
-            f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
-            recs.iter()
-                .map(|x| x.episode_name.clone())
-                .flatten()
-                .next()
-                .unwrap_or_else(|| String::from("(unknown)")),
-            resp,
-            episode_id + 1,
-        )))
+        recs.len(),
+        f64::from(resp.bytes().len() as u32) / (1024f64 * 1024f64),
+        recs.iter()
+            .map(|x| x.episode_name.clone())
+            .flatten()
+            .next()
+            .unwrap_or_else(|| String::from("(unknown)")),
+        resp,
+        episode_id + 1,
+    ))
+    .with_header(Header::from_str("Content-Type: text/html; charset=utf-8").unwrap()))
 }
 
-#[get("/list-comics")]
-fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
+fn list_comics(conn: &SqliteConnection) -> Result<BytesResponse> {
     use crate::models::TitleRecord;
     use crate::schema::titles::dsl::*;
 
-    let conn = data.lock().unwrap();
-
-    let tvec = titles
-        .order_by(title)
-        .load::<TitleRecord>(&*conn)
-        .map_err(actix_web::error::ErrorInternalServerError)?;
+    let tvec = titles.order_by(title).load::<TitleRecord>(&*conn)?;
 
     fn into_list_row(rec: TitleRecord) -> String {
         format!(
@@ -95,7 +85,7 @@ fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
         )
     }
 
-    Ok::<_, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
+    Ok(Response::from_string(format!(
         r#"<html>
 <head>
     <meta charset="UTF-8"> 
@@ -107,18 +97,13 @@ fn list_comics(data: web::Data<Mutex<SqliteConnection>>) -> impl Responder {
         tvec.into_iter()
             .map(into_list_row)
             .collect::<Vec<String>>()
-            .join(""))))
+            .join("")
+    ))
+    .with_header(Header::from_str("Content-Type: text/html; charset=utf-8").unwrap()))
 }
 
-#[get("/list-episodes/{comic_id}")]
-fn list_episodes(
-    path: web::Path<String>,
-    data: web::Data<Mutex<SqliteConnection>>,
-) -> impl Responder {
+fn list_episodes(target_id: String, conn: &SqliteConnection) -> Result<BytesResponse> {
     use crate::schema::episodes::dsl::*;
-
-    let target_id = path.into_inner();
-    let conn = data.lock().unwrap();
 
     fn into_list_row((_comic, _episode, _episode_seq): (String, Option<String>, i32)) -> String {
         format!(
@@ -134,14 +119,13 @@ fn list_episodes(
         .distinct()
         .filter(id.eq(target_id))
         .order_by(seq)
-        .load(&*conn)
-        .map_err(actix_web::error::ErrorInternalServerError)?
+        .load(&*conn)?
         .into_iter()
         .map(into_list_row)
         .collect::<Vec<String>>()
         .join("");
 
-    Ok::<_, ActixError>(HttpResponse::Ok().content_type("text/html").body(format!(
+    Ok(Response::from_string(format!(
         r#"<html>
 <head>
 	<meta charset="UTF-8"> 
@@ -151,23 +135,59 @@ fn list_episodes(
 </body>
 </html>"#,
         eps
-    )))
+    ))
+    .with_header(Header::from_str("Content-Type: text/html; charset=utf-8").unwrap()))
 }
 
-pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) -> Result<()> {
-    let data = web::Data::new(Mutex::new(conn));
+pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) {
+    let server = tiny_http::Server::http(addr).unwrap();
 
-    HttpServer::new(move || {
-        App::new()
-            .wrap(middleware::Logger::default())
-            .register_data(data.clone())
-            .service(static_css)
-            .service(comic_pics)
-            .service(list_comics)
-            .service(list_episodes)
-            .service(redirect_root)
-    })
-    .bind(addr)?
-    .run()?;
-    Ok(())
+    for request in server.incoming_requests() {
+        if request.method() != &tiny_http::Method::Get {
+            continue;
+        }
+
+        log::debug!("Addr: {}, URL: {}", request.remote_addr(), request.url());
+
+        macro_rules! respond {
+            ($req:expr, $resp:expr) => {
+                if let Err(err) = $req.respond($resp) {
+                    log::error!("Error while responding to request: {}", err);
+                }
+            };
+        }
+
+        let resp = match request.url().to_owned().as_ref() {
+            "/" => {
+                respond!(request, redirect_root());
+            }
+            "/list-comics" => {
+                respond!(request, list_comics(&conn).unwrap());
+            }
+            "/static/styles.css" => {
+                respond!(request, static_css());
+            }
+            url @ _ => {
+                if url.starts_with("/list-episodes/") {
+                    respond!(
+                        request,
+                        list_episodes(String::from(&url[15..]), &conn).unwrap()
+                    )
+                } else if url.starts_with("/comic/") {
+                    let splits = &url[7..].split('/').collect::<Vec<_>>();
+                    respond!(
+                        request,
+                        comic_pics(
+                            splits[0].to_string(),
+                            splits[1].parse::<i32>().unwrap(),
+                            &conn
+                        )
+                        .unwrap()
+                    )
+                } else {
+                    respond!(request, Response::from_string("Unknown request"));
+                }
+            }
+        };
+    }
 }

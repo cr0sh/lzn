@@ -101,7 +101,7 @@ impl Cmd {
                 use lzn::merge;
 
                 dir.push("[0-9]*.jpg");
-                let paths = util::sort_by_name_order(
+                let paths = crate::util::sort_by_name_order(
                     glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)?
                         .collect::<Result<Vec<PathBuf>, _>>()?,
                 );
@@ -137,7 +137,7 @@ impl Cmd {
             Cmd::Migrate { .. } => {
                 unimplemented!("Feature `migrate` not enabled for this subcommand")
             }
-            #[cfg(feature = "merge")]
+            #[cfg(feature = "migrate")]
             Cmd::Migrate { dir, db } => {
                 use lzn::migrate;
 
@@ -212,7 +212,7 @@ impl Cmd {
 
                 log::info!("Serving {} on {}", dbpath.to_str().unwrap(), addr,);
 
-                web::serve(addr, conn)?;
+                web::serve(addr, conn);
             }
             Cmd::Scrape { db, credential } => {
                 let cred = std::fs::read_to_string(credential)?;
