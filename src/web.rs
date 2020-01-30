@@ -157,7 +157,7 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) {
             };
         }
 
-        let resp = match request.url().to_owned().as_ref() {
+        match request.url().to_owned().as_ref() {
             "/" => {
                 respond!(request, redirect_root());
             }
