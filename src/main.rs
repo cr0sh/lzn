@@ -87,6 +87,17 @@ enum Cmd {
         #[structopt(short, long, parse(from_os_str))]
         credential: PathBuf,
     },
+
+    /// Export comics into a single .cbz file.
+    /// File structure in the archive will be same as web server directories.
+    #[structopt(name = "export")]
+    Export {
+        /// Database path. If not provided defaults to ~/lzn.sqlite
+        #[structopt(parse(from_os_str))]
+        db: Option<PathBuf>,
+        /// Output path. If not provided defaults to current directory
+        out: Option<PathBuf>,
+    },
 }
 
 impl Cmd {
@@ -275,6 +286,36 @@ impl Cmd {
                 log::info!(
                     "Complete: {} titles are updated.",
                     lzn::scraper::scrap_titles(&conn, id, pw)?
+                );
+            }
+
+            Cmd::Export { db, out } => {
+                let dbpath = match db {
+                    Some(path) => path,
+                    None => {
+                        let mut path = dirs::home_dir()
+                            .ok_or("Unable to get home directory of current user")?;
+                        path.push(DEFAULT_DATABASE_NAME);
+                        path
+                    }
+                };
+                let out = out.unwrap_or_else(|| PathBuf::from("."));
+
+                if log::log_enabled!(log::Level::Info) {
+                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
+                }
+
+                let conn = SqliteConnection::establish(
+                    dbpath.to_str().expect("Converting PathBuf to &str failed"),
+                )
+                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+
+                check_migrations(&conn)?;
+
+                log::info!("Exporting comics");
+                log::info!(
+                    "Complete: {} comic archives are created.",
+                    lzn::export::export_database(&conn, out)?
                 );
             }
         }

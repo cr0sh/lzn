@@ -2,6 +2,7 @@
 extern crate diesel;
 
 pub mod error;
+pub mod export;
 #[cfg(feature = "merge")]
 pub mod merge;
 #[cfg(feature = "migrate")]

@@ -5,8 +5,6 @@ use reqwest::UrlError as URLError;
 use serde_json::Error as JSONError;
 use std::io::Error as IOError;
 use std::num::ParseIntError;
-
-#[cfg(feature = "migrate")]
 use zip::result::ZipError;
 
 use err_derive::Error;
@@ -16,7 +14,6 @@ use err_derive::Error;
 pub enum Error {
     #[error(display = "Bincode serialization/deserialization failure")]
     Bincode(#[error(source)] BincodeError),
-    #[cfg(feature = "migrate")]
     #[error(display = "zip-rs library failure")]
     Zip(#[error(source)] ZipError),
     #[error(display = "std::io failure")]

@@ -1,9 +1,7 @@
 use crate::error::Result;
 use diesel::prelude::*;
-use std::error::Error;
 use std::io::{Cursor, Empty};
 use std::str::FromStr;
-use std::sync::Mutex;
 use tiny_http::{Header, Response, StatusCode};
 
 type BytesResponse = Response<Cursor<Vec<u8>>>;
