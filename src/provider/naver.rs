@@ -207,7 +207,7 @@ pub(crate) fn fetch_episodes(
             .len()
             > 0
         {
-            log::info!(
+            log::debug!(
                 "Skipping episode sequence {} because record exists already",
                 ep_num
             );

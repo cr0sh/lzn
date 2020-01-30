@@ -171,7 +171,7 @@ pub(crate) fn fetch_episodes(
         .rev()
         .filter(|ep| match ep.display.get("type").map(String::as_ref) {
             Some("n") => {
-                log::info!("Skipping notice episode {}", ep.display["title"]);
+                log::debug!("Skipping notice episode {}", ep.display["title"]);
                 false
             }
             Some(_) => true,
@@ -193,7 +193,7 @@ pub(crate) fn fetch_episodes(
             .len()
             > 0
         {
-            log::info!(
+            log::debug!(
                 "Episode sequence {} (title {}) is already scraped. Skipping.",
                 episode_idx as i32 + 1,
                 ep.display["title"]
