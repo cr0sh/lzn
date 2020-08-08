@@ -7,7 +7,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::Read;
 
-const AUTH_URL: &str = "https://www.lezhin.com/ko/login/submit?redirect=http://www.lezhin.com/ko";
+const MAIN_PAGE_URL: &str = "https://www.lezhin.com/ko";
+const AUTH_URL: &str = "https://www.lezhin.com/ko/login";
 const EPISODE_LIST_URL: &str = "https://www.lezhin.com/ko/comic/";
 const COMIC_API_URL: &str = "https://www.lezhin.com/api/v2/inventory_groups/comic_viewer_k";
 const CDN_BASE_URL: &str = "https://cdn.lezhin.com/v2";
@@ -55,18 +56,39 @@ where
     }
 }
 
+pub(crate) fn fetch_authenticity_token(agent: &ureq::Agent) -> Result<String> {
+    let resp = agent.get(MAIN_PAGE_URL).call().into_string()?;
+
+    log::debug!("Main page response: \n{}", resp);
+
+    let doc = Document::from(resp.as_ref());
+    Ok(doc
+        .find(And(Name("input"), Attr("name", "authenticity_token")))
+        .next()
+        .expect("Expected a authenticity token field on login form")
+        .attr("value")
+        .expect("authenticity_token field must have a value")
+        .to_owned())
+}
+
 pub(crate) fn authenticate(agent: &ureq::Agent, id: &str, password: &str) -> Result<()> {
+    let auth_token = fetch_authenticity_token(agent)?;
+
     let encoded = url::form_urlencoded::Serializer::new(String::new())
         .extend_pairs(&[
-            ("redirect", "/ko"),
+            ("utf8", "✓"),
+            ("authenticity_token", &auth_token),
             ("username", id),
             ("password", password),
             ("remember_me", "false"),
         ])
         .finish();
     let res = agent.post(AUTH_URL).send_string(&encoded);
-    if res.error() || res.status() != 302 {
-        panic!("Cannot authenticate client: response code {}", res.status());
+    if res.error() || res.status() != 200 {
+        panic!(
+            "Server returned non-OK result for authentication request: response code {}",
+            res.status()
+        );
     }
 
     // log::debug!("Auth response url: {}", res.url().to_string());
@@ -78,15 +100,18 @@ pub(crate) fn authenticate(agent: &ureq::Agent, id: &str, password: &str) -> Res
     // but reqwest does not support per-request redirection policy currently.
     // ref: https://github.com/seanmonstar/reqwest/issues/353
     // update on 20200222: Moved to ureq. Will discuss later.
-    if let Some(u) = res.header("Location") {
-        if u == "https://www.lezhin.com/ko" {
-            Ok(())
-        } else {
-            Err("Authentication failure: incorrect response url")?
-        }
-    } else {
-        unreachable!()
-    }
+    // update on 20200808: Authentication process was changed. No need to check redirection page URL.
+    // if let Some(u) = res.header("Location") {
+    //     if u == "https://www.lezhin.com/ko" {
+    //         Ok(())
+    //     } else {
+    //         Err("Authentication failure: incorrect response url")?
+    //     }
+    // } else {
+    //     unreachable!()
+    // }
+
+    Ok(())
 }
 
 fn fetch_product_object(agent: &ureq::Agent, comic_id: &str) -> Result<LezhinProduct> {
