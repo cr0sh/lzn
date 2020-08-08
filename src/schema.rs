@@ -39,9 +39,4 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(
-    comics,
-    episodes,
-    scraping_targets,
-    titles,
-);
+allow_tables_to_appear_in_same_query!(comics, episodes, scraping_targets, titles,);

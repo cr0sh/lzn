@@ -1,6 +1,5 @@
 use crate::error::Result;
 use diesel::prelude::*;
-use reqwest::Url;
 use select::document::Document;
 use select::predicate::{And, Attr, Class, Name};
 
@@ -24,27 +23,21 @@ impl SortOrder {
 
 /// Parses episode list page into vector of tuples: (number, title, URL).
 pub(crate) fn fetch_episode_list_page(
-    client: &reqwest::Client,
+    agent: &ureq::Agent,
     comic_id: &str,
     page: u32,
     order: SortOrder,
-) -> Result<(String, Vec<(u32, String, Url)>)> {
-    let url = Url::parse_with_params(
-        MOBILE_EPISODE_LIST_URL,
-        &[
-            ("titleId", comic_id),
-            ("sortOrder", order.to_str()),
-            ("page", &page.to_string()),
-        ],
-    )
-    .unwrap();
-
-    let mut resp = client.get(url).send()?;
-    if resp.status() != reqwest::StatusCode::OK {
+) -> Result<(String, Vec<(u32, String, url::Url)>)> {
+    let resp = agent.get(MOBILE_EPISODE_LIST_URL).send_form(&[
+        ("titleId", comic_id),
+        ("sortOrder", order.to_str()),
+        ("page", &page.to_string()),
+    ]);
+    if resp.error() {
         Err("Non-OK response from Naver episode list page")?;
     }
 
-    let doc = Document::from(resp.text()?.as_ref());
+    let doc = Document::from(resp.into_string()?.as_ref());
 
     let episodes = doc
         .find(And(Name("ul"), Class("section_episode_list")))
@@ -83,7 +76,7 @@ pub(crate) fn fetch_episode_list_page(
             Ok((
                 no,
                 title,
-                reqwest::Url::parse(&(String::from(MOBILE_COMIC_BASE_URL) + &url))?,
+                ::url::Url::parse(&(String::from(MOBILE_COMIC_BASE_URL) + &url)).unwrap(),
             ))
         })
         .collect::<Result<Vec<_>>>()?;
@@ -100,20 +93,25 @@ pub(crate) fn fetch_episode_list_page(
 }
 
 pub(crate) fn fetch_episode(
-    client: &reqwest::Client,
+    agent: &ureq::Agent,
     comic_id_: &str,
     episode_num: u32,
 ) -> Result<(String, Vec<Vec<u8>>)> {
     use std::io::Read;
-
     const FAKE_CHROME_74_UA: &'static str="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36";
 
-    let url = Url::parse_with_params(
-        COMIC_EPISODE_PAGE_URL,
-        &[("titleId", comic_id_), ("no", &episode_num.to_string())],
-    )
-    .expect("Generated URL must be valid");
-    let doc = Document::from(client.get(url).send()?.text()?.as_ref());
+    // let url = Url::parse_with_params(
+    //     COMIC_EPISODE_PAGE_URL,
+    //     &[("titleId", comic_id_), ("no", &episode_num.to_string())],
+    // )
+    // .expect("Generated URL must be valid");
+
+    let doc = {
+        let resp = agent
+            .get(COMIC_EPISODE_PAGE_URL)
+            .send_form(&[("titleId", comic_id_), ("no", &episode_num.to_string())]);
+        Document::from(resp.into_string()?.as_ref())
+    };
     let image_links = doc
         .find(Class("wt_viewer"))
         .next()
@@ -130,18 +128,15 @@ pub(crate) fn fetch_episode(
         .into_iter()
         .map(|link| {
             log::debug!("image link: {}", link);
-            let resp = client
-                .get(link)
-                .header(reqwest::header::USER_AGENT, FAKE_CHROME_74_UA)
-                .send()?;
-            if resp.status() != reqwest::StatusCode::OK {
+            let resp = agent.get(link).set("User-Agent", FAKE_CHROME_74_UA).call();
+            if resp.status() != 200 {
                 log::error!(
                     "Server returned non-OK response for image request: {}",
                     resp.status()
                 );
                 Err("Server returned non-OK response for image request")?;
             }
-            Ok(resp.bytes().collect::<Result<Vec<_>, _>>()?)
+            Ok(resp.into_reader().bytes().collect::<Result<Vec<_>, _>>()?)
         })
         .collect::<Result<Vec<_>>>()?;
 
@@ -158,7 +153,7 @@ pub(crate) fn fetch_episode(
 }
 
 pub(crate) fn fetch_episodes(
-    client: &reqwest::Client,
+    agent: &ureq::Agent,
     comic_id_: &str,
     conn: &SqliteConnection,
 ) -> Result<()> {
@@ -168,9 +163,9 @@ pub(crate) fn fetch_episodes(
     use crate::schema::titles::dsl::*;
 
     let (comic_title, first_list) =
-        fetch_episode_list_page(client, comic_id_, 1, SortOrder::Ascending)?;
+        fetch_episode_list_page(agent, comic_id_, 1, SortOrder::Ascending)?;
     let first_num = first_list[0].0;
-    let last_num = (fetch_episode_list_page(client, comic_id_, 1, SortOrder::Descending)?.1)[0].0;
+    let last_num = (fetch_episode_list_page(agent, comic_id_, 1, SortOrder::Descending)?.1)[0].0;
 
     log::info!("Title found for current comic: {}", comic_title);
 
@@ -214,7 +209,7 @@ pub(crate) fn fetch_episodes(
             continue;
         }
 
-        let (title_, eps) = fetch_episode(client, comic_id_, ep_num)?;
+        let (title_, eps) = fetch_episode(agent, comic_id_, ep_num)?;
         log::info!("Saving episode {}: {}", ep_num, title_);
 
         let recs = eps

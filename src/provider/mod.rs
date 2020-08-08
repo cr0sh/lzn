@@ -17,37 +17,32 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub(crate) fn authenticate(
-        &self,
-        client: &reqwest::Client,
-        id: &str,
-        password: &str,
-    ) -> Result<()> {
+    pub(crate) fn authenticate(&self, agent: &ureq::Agent, id: &str, password: &str) -> Result<()> {
         match self {
-            Self::Lezhin => lezhin::authenticate(client, id, password),
+            Self::Lezhin => lezhin::authenticate(agent, id, password),
             Self::Naver => Ok(()), // authentication is not required
         }
     }
 
     pub(crate) fn fetch_episodes(
         &self,
-        client: &reqwest::Client,
+        agent: &ureq::Agent,
         comic_id: &str,
         conn: &SqliteConnection,
     ) -> Result<()> {
         match self {
-            Self::Lezhin => lezhin::fetch_episodes(client, comic_id, conn),
-            Self::Naver => naver::fetch_episodes(client, comic_id, conn),
+            Self::Lezhin => lezhin::fetch_episodes(agent, comic_id, conn),
+            Self::Naver => naver::fetch_episodes(agent, comic_id, conn),
         }
     }
 
     pub(crate) fn fetch_titles(
         &self,
-        client: &reqwest::Client,
+        agent: &ureq::Agent,
         comic_ids: Vec<String>,
     ) -> Result<Vec<String>> {
         match self {
-            Self::Lezhin => lezhin::fetch_titles(client, comic_ids),
+            Self::Lezhin => lezhin::fetch_titles(agent, comic_ids),
             Self::Naver => unimplemented!(),
         }
     }

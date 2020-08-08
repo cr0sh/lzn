@@ -55,40 +55,51 @@ where
     }
 }
 
-pub(crate) fn authenticate(client: &reqwest::Client, id: &str, password: &str) -> Result<()> {
-    let res = client
-        .post(AUTH_URL)
-        .form(&[
+pub(crate) fn authenticate(agent: &ureq::Agent, id: &str, password: &str) -> Result<()> {
+    let encoded = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(&[
             ("redirect", "/ko"),
             ("username", id),
             ("password", password),
             ("remember_me", "false"),
         ])
-        .send()?;
+        .finish();
+    let res = agent.post(AUTH_URL).send_string(&encoded);
+    if res.error() || res.status() != 302 {
+        panic!("Cannot authenticate client: response code {}", res.status());
+    }
 
-    log::debug!("Auth response url: {}", res.url().to_string());
-    log::debug!("Auth response code: {}", res.status().to_string());
+    // log::debug!("Auth response url: {}", res.url().to_string());
+    // log::debug!("Auth response code: {}", res.status().to_string());
     // log::debug!("Auth cookies: {:#?}", res.cookies().collect::<Vec<_>>());
 
     // FIXME: If we authenticate outside Korea, how will the url change?
     // Maybe we should check not final url but initial redirection request,
     // but reqwest does not support per-request redirection policy currently.
     // ref: https://github.com/seanmonstar/reqwest/issues/353
-    if res.url().to_string() == "https://www.lezhin.com/ko" {
-        Ok(())
+    // update on 20200222: Moved to ureq. Will discuss later.
+    if let Some(u) = res.header("Location") {
+        if u == "https://www.lezhin.com/ko" {
+            Ok(())
+        } else {
+            Err("Authentication failure: incorrect response url")?
+        }
     } else {
-        Err("Authentication failure: incorrect response url")?
+        unreachable!()
     }
 }
 
-fn fetch_product_object(client: &reqwest::Client, comic_id: &str) -> Result<LezhinProduct> {
-    let doc = Document::from(
-        client
+fn fetch_product_object(agent: &ureq::Agent, comic_id: &str) -> Result<LezhinProduct> {
+    let doc = {
+        let resp = agent
             .get(&(String::from(EPISODE_LIST_URL) + comic_id))
-            .send()?
-            .text()?
-            .as_ref(),
-    );
+            .call();
+        if resp.error() {
+            Err("Non-OK result for episode list")?;
+        }
+
+        Document::from(resp.into_string()?.as_ref())
+    };
 
     // Find script tag without id attribute
     // TODO: Can we flatten nested scopes?
@@ -130,7 +141,7 @@ fn fetch_product_object(client: &reqwest::Client, comic_id: &str) -> Result<Lezh
 }
 
 pub(crate) fn fetch_episodes(
-    client: &reqwest::Client,
+    agent: &ureq::Agent,
     comic_id_: &str,
     conn: &SqliteConnection,
 ) -> Result<()> {
@@ -139,7 +150,7 @@ pub(crate) fn fetch_episodes(
     use crate::schema::episodes::dsl::*;
     use crate::schema::titles::dsl::*;
 
-    let eps = fetch_product_object(client, comic_id_)?;
+    let eps = fetch_product_object(agent, comic_id_)?;
     let rec = TitleRecord {
         provider: super::Provider::Lezhin,
         id: comic_id_.to_owned(),
@@ -207,7 +218,7 @@ pub(crate) fn fetch_episodes(
         }
 
         log::info!("Fetching episode: {}", ep.display["title"]);
-        let images = fetch_episode(client, comic_id_, &ep)?;
+        let images = fetch_episode(agent, comic_id_, &ep)?;
 
         let recs = images
             .iter()
@@ -254,25 +265,26 @@ pub(crate) fn fetch_episodes(
 }
 
 fn fetch_episode(
-    client: &reqwest::Client,
+    agent: &ureq::Agent,
     comic_id: &str,
     episode: &EpisodeMetadata,
 ) -> Result<Vec<Vec<u8>>> {
-    let json: serde_json::Value = client
-        .get(
-            reqwest::Url::parse_with_params(
-                COMIC_API_URL,
-                &[
-                    ("alias", comic_id),
-                    ("name", episode.name.as_ref()),
-                    ("preload", "true"),
-                    ("type", "comic_episode"),
-                ],
-            )
-            .unwrap(),
-        )
-        .send()?
-        .json()?;
+    let encoded = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(&[
+            ("alias", comic_id),
+            ("name", episode.name.as_ref()),
+            ("preload", "true"),
+            ("type", "comic_episode"),
+        ])
+        .finish();
+
+    let resp = agent.get(COMIC_API_URL).send_string(&encoded);
+
+    if resp.error() {
+        Err("Episode page returned non-OK result")?;
+    }
+
+    let json: serde_json::Value = resp.into_json()?;
 
     if json["code"]
         .as_u64()
@@ -296,25 +308,25 @@ fn fetch_episode(
                     .as_str()
                     .ok_or("Expected string path for image item")?;
 
-            let resp = client.get::<&str>(url.as_ref()).send()?;
-            if resp.status() != reqwest::StatusCode::OK {
-                Err("Lezhin API returned non-OK result for image request".into())
+            let resp = agent.get(url.as_ref()).call();
+            if resp.error() {
+                Err("Lezhin API returned non-OK result for image request")?
             } else {
-                Ok(resp.bytes().collect::<Result<Vec<_>, _>>()?)
+                let mut buf = Vec::new();
+                resp.into_reader().read_to_end(&mut buf)?;
+
+                Ok(buf)
             }
         })
         .collect::<Result<Vec<_>>>()
 }
 
-pub(crate) fn fetch_titles(
-    client: &reqwest::Client,
-    comic_ids: Vec<String>,
-) -> Result<Vec<String>> {
+pub(crate) fn fetch_titles(agent: &ureq::Agent, comic_ids: Vec<String>) -> Result<Vec<String>> {
     comic_ids
         .iter()
         .map(|comic_id| {
             log::debug!("Fetching title for comic ID {}", comic_id);
-            Ok(fetch_product_object(client, &comic_id)?.display["title"].clone())
+            Ok(fetch_product_object(agent, &comic_id)?.display["title"].clone())
         })
         .collect::<Result<Vec<_>>>()
 }

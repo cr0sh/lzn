@@ -1,7 +1,5 @@
 use bincode::Error as BincodeError;
 use diesel::result::Error as DieselError;
-use reqwest::Error as ReqwestError;
-use reqwest::UrlError as URLError;
 use serde_json::Error as JSONError;
 use std::io::Error as IOError;
 use std::num::ParseIntError;
@@ -23,15 +21,11 @@ pub enum Error {
     #[error(display = "Diesel failure")]
     Diesel(#[error(source)] DieselError),
     #[error(display = "Reqwest failure")]
-    Reqwest(#[error(source)] ReqwestError),
-    #[error(display = "Authentication failure from a server")]
     AuthFailure,
     #[error(display = "{}", _0)]
     StaticStr(&'static str),
     #[error(display = "JSON Serialization/Deserialization failure")]
     Serde(#[error(source)] JSONError),
-    #[error(display = "URL parse error")]
-    URL(#[error(source)] URLError),
     #[error(display = "Currently unavailable episode")]
     UnavailableEpisode,
 }
