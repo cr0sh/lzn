@@ -2,6 +2,9 @@ use crate::error::Result;
 use crate::provider::Provider;
 use diesel::prelude::*;
 
+pub(crate) const FAKE_UA: &'static str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0";
+
 /// Starts scraping.
 /// Target lists are in given database's `scrap_targets` table.
 pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
@@ -9,7 +12,8 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
     use crate::schema::scraping_targets::dsl::*;
     let targets: Vec<crate::models::ScrapingTarget> =
         scraping_targets.load::<ScrapingTarget>(conn)?;
-    let agent = ureq::agent();
+    let mut agent = ureq::agent();
+    agent.set("User-Agent", FAKE_UA);
 
     Provider::Lezhin.authenticate(&agent, id_, pw_)?; // TODO: Authenticate client for other providers
     log::debug!(

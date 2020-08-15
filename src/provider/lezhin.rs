@@ -294,22 +294,21 @@ fn fetch_episode(
     comic_id: &str,
     episode: &EpisodeMetadata,
 ) -> Result<Vec<Vec<u8>>> {
-    let encoded = url::form_urlencoded::Serializer::new(String::new())
-        .extend_pairs(&[
-            ("alias", comic_id),
-            ("name", episode.name.as_ref()),
-            ("preload", "true"),
-            ("type", "comic_episode"),
-        ])
-        .finish();
+    let resp = agent
+        .get(COMIC_API_URL)
+        .set("Accept", "application/json, text/javascript, */*; q=0.01")
+        .set("Accept-Language", "ko-KR,ko;q=0.8,en-US;q=0.5,en;q=0.3")
+        .query("platform", "web")
+        .query("store", "web")
+        .query("alias", comic_id)
+        .query("name", episode.name.as_ref())
+        .query("preload", "true")
+        .query("type", "comic_episode")
+        .call();
 
-    let resp = agent.get(COMIC_API_URL).send_string(&encoded);
-
-    if resp.error() {
-        Err("Episode page returned non-OK result")?;
-    }
-
-    let json: serde_json::Value = resp.into_json()?;
+    let json = resp
+        .into_json()
+        .map_err(|_| "Non-OK result for comic_view_k API request")?;
 
     if json["code"]
         .as_u64()
