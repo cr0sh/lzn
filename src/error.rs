@@ -3,6 +3,7 @@ use diesel::result::Error as DieselError;
 use serde_json::Error as JSONError;
 use std::io::Error as IOError;
 use std::num::ParseIntError;
+use ureq::Error as UreqError;
 use zip::result::ZipError;
 
 use err_derive::Error;
@@ -28,6 +29,8 @@ pub enum Error {
     Serde(#[error(source)] JSONError),
     #[error(display = "Currently unavailable episode")]
     UnavailableEpisode,
+    #[error(display = "ureq failure")]
+    Ureq(#[error(source)] UreqError),
 }
 
 impl From<&'static str> for Error {

@@ -12,8 +12,7 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
     use crate::schema::scraping_targets::dsl::*;
     let targets: Vec<crate::models::ScrapingTarget> =
         scraping_targets.load::<ScrapingTarget>(conn)?;
-    let mut agent = ureq::agent();
-    agent.set("User-Agent", FAKE_UA);
+    let agent = ureq::AgentBuilder::new().user_agent(FAKE_UA).build();
 
     Provider::Lezhin.authenticate(&agent, id_, pw_)?; // TODO: Authenticate client for other providers
     log::debug!(

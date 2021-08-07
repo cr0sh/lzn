@@ -32,10 +32,7 @@ pub(crate) fn fetch_episode_list_page(
         ("titleId", comic_id),
         ("sortOrder", order.to_str()),
         ("page", &page.to_string()),
-    ]);
-    if resp.error() {
-        Err("Non-OK response from Naver episode list page")?;
-    }
+    ])?;
 
     let doc = Document::from(resp.into_string()?.as_ref());
 
@@ -109,7 +106,7 @@ pub(crate) fn fetch_episode(
     let doc = {
         let resp = agent
             .get(COMIC_EPISODE_PAGE_URL)
-            .send_form(&[("titleId", comic_id_), ("no", &episode_num.to_string())]);
+            .send_form(&[("titleId", comic_id_), ("no", &episode_num.to_string())])?;
         Document::from(resp.into_string()?.as_ref())
     };
     let image_links = doc
@@ -128,14 +125,10 @@ pub(crate) fn fetch_episode(
         .into_iter()
         .map(|link| {
             log::debug!("image link: {}", link);
-            let resp = agent.get(link).set("User-Agent", FAKE_CHROME_74_UA).call();
-            if resp.status() != 200 {
-                log::error!(
-                    "Server returned non-OK response for image request: {}",
-                    resp.status()
-                );
-                Err("Server returned non-OK response for image request")?;
-            }
+            let resp = agent
+                .get(link)
+                .set("User-Agent", FAKE_CHROME_74_UA)
+                .call()?;
             Ok(resp.into_reader().bytes().collect::<Result<Vec<_>, _>>()?)
         })
         .collect::<Result<Vec<_>>>()?;

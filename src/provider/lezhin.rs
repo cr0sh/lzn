@@ -57,7 +57,7 @@ where
 }
 
 pub(crate) fn fetch_authenticity_token(agent: &ureq::Agent) -> Result<String> {
-    let resp = agent.get(MAIN_PAGE_URL).call().into_string()?;
+    let resp = agent.get(MAIN_PAGE_URL).call()?.into_string()?;
 
     log::debug!("Main page response: \n{}", resp);
 
@@ -83,8 +83,8 @@ pub(crate) fn authenticate(agent: &ureq::Agent, id: &str, password: &str) -> Res
             ("remember_me", "false"),
         ])
         .finish();
-    let res = agent.post(AUTH_URL).send_string(&encoded);
-    if res.error() || res.status() != 200 {
+    let res = agent.post(AUTH_URL).send_string(&encoded)?;
+    if res.status() != 200 {
         panic!(
             "Server returned non-OK result for authentication request: response code {}",
             res.status()
@@ -118,10 +118,7 @@ fn fetch_product_object(agent: &ureq::Agent, comic_id: &str) -> Result<LezhinPro
     let doc = {
         let resp = agent
             .get(&(String::from(EPISODE_LIST_URL) + comic_id))
-            .call();
-        if resp.error() {
-            Err("Non-OK result for episode list")?;
-        }
+            .call()?;
 
         Document::from(resp.into_string()?.as_ref())
     };
@@ -304,9 +301,9 @@ fn fetch_episode(
         .query("name", episode.name.as_ref())
         .query("preload", "true")
         .query("type", "comic_episode")
-        .call();
+        .call()?;
 
-    let json = resp
+    let json: serde_json::Value = resp
         .into_json()
         .map_err(|_| "Non-OK result for comic_view_k API request")?;
 
@@ -332,15 +329,11 @@ fn fetch_episode(
                     .as_str()
                     .ok_or("Expected string path for image item")?;
 
-            let resp = agent.get(url.as_ref()).call();
-            if resp.error() {
-                Err("Lezhin API returned non-OK result for image request")?
-            } else {
-                let mut buf = Vec::new();
-                resp.into_reader().read_to_end(&mut buf)?;
+            let resp = agent.get(url.as_ref()).call()?;
+            let mut buf = Vec::new();
+            resp.into_reader().read_to_end(&mut buf)?;
 
-                Ok(buf)
-            }
+            Ok(buf)
         })
         .collect::<Result<Vec<_>>>()
 }
