@@ -241,7 +241,7 @@ impl Cmd {
                 };
 
                 if log::log_enabled!(log::Level::Info) {
-                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
+                    log::info!("Opening SQLite DB at {:?}", dbpath);
                 }
 
                 let conn = SqliteConnection::establish(
@@ -272,7 +272,7 @@ impl Cmd {
                 };
 
                 if log::log_enabled!(log::Level::Info) {
-                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
+                    log::info!("Opening SQLite DB at {:?}", dbpath);
                 }
 
                 let conn = SqliteConnection::establish(
@@ -302,7 +302,7 @@ impl Cmd {
                 let out = out.unwrap_or_else(|| PathBuf::from("."));
 
                 if log::log_enabled!(log::Level::Info) {
-                    log::info!("Opening SQLite DB at {:?}", dbpath.clone());
+                    log::info!("Opening SQLite DB at {:?}", dbpath);
                 }
 
                 let conn = SqliteConnection::establish(

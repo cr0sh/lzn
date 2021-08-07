@@ -20,7 +20,8 @@ pub fn export_database(conn: &SqliteConnection, out: PathBuf) -> Result<usize> {
     let mut return_cnt = 0;
 
     for title_rec in title_recs {
-        let title_ = title_rec.title.unwrap_or(title_rec.id.clone());
+        let title_id = title_rec.id.clone();
+        let title_ = title_rec.title.unwrap_or(title_id);
         let mut out_dir = out.clone();
         out_dir.push(title_rec.provider.to_string().to_lowercase() + "-" + &title_);
         out_dir.set_extension("cbz");

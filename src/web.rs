@@ -165,14 +165,14 @@ pub fn serve(addr: impl std::net::ToSocketAddrs, conn: SqliteConnection) {
             "/static/styles.css" => {
                 respond!(request, static_css());
             }
-            url @ _ => {
-                if url.starts_with("/list-episodes/") {
+            url => {
+                if let Some(episode_path) = url.strip_prefix("/list-episodes/") {
                     respond!(
                         request,
-                        list_episodes(String::from(&url[15..]), &conn).unwrap()
+                        list_episodes(String::from(episode_path), &conn).unwrap()
                     )
-                } else if url.starts_with("/comic/") {
-                    let splits = &url[7..].split('/').collect::<Vec<_>>();
+                } else if let Some(path) = url.strip_prefix("/comic/") {
+                    let splits = path.split('/').collect::<Vec<_>>();
                     respond!(
                         request,
                         comic_pics(

@@ -129,9 +129,9 @@ fn fetch_product_object(agent: &ureq::Agent, comic_id: &str) -> Result<LezhinPro
         Name("script"),
         And(Not(Attr("id", ())), Not(Attr("src", ()))),
     )) {
-        const LZPRODUCT_START_TEXT: &'static str = "__LZ_PRODUCT__ = ";
-        const PRODUCT_ATTR_START_TEXT: &'static str = "product: ";
-        const PRODUCT_ATTR_END_TEXT: &'static str = ",\n        departure";
+        const LZPRODUCT_START_TEXT: &str = "__LZ_PRODUCT__ = ";
+        const PRODUCT_ATTR_START_TEXT: &str = "product: ";
+        const PRODUCT_ATTR_END_TEXT: &str = ",\n        departure";
         if let Some(text) = sel
             .children()
             .next()
@@ -179,12 +179,11 @@ pub(crate) fn fetch_episodes(
         title: Some(eps.display["title"].to_owned()),
     };
 
-    if titles
+    if !titles
         .filter(crate::schema::titles::dsl::provider.eq(&rec.provider))
         .filter(crate::schema::titles::dsl::id.eq(&rec.id))
         .load::<TitleRecord>(conn)?
-        .len()
-        > 0
+        .is_empty()
     {
         diesel::update(
             titles
@@ -218,13 +217,12 @@ pub(crate) fn fetch_episodes(
         })
         .enumerate()
     {
-        if comics
+        if !comics
             .filter(crate::schema::comics::dsl::provider.eq(super::Provider::Lezhin))
             .filter(comic_id.eq(comic_id_.to_owned()))
             .filter(episode_seq.eq(episode_idx as i32 + 1))
             .load::<ComicRecord>(conn)?
-            .len()
-            > 0
+            .is_empty()
         {
             log::debug!(
                 "Episode sequence {} (title {}) is already scraped. Skipping.",
@@ -234,13 +232,13 @@ pub(crate) fn fetch_episodes(
             continue;
         }
 
-        if ep.freed_at.unwrap_or_else(|| chrono::Utc::now()) > chrono::Utc::now() {
+        if ep.freed_at.unwrap_or_else(chrono::Utc::now) > chrono::Utc::now() {
             log::info!("Skipping unavailble episode: {}", ep.display["title"]);
             continue;
         }
 
         log::info!("Fetching episode: {}", ep.display["title"]);
-        let images = fetch_episode(agent, comic_id_, &ep)?;
+        let images = fetch_episode(agent, comic_id_, ep)?;
 
         let recs = images
             .iter()
@@ -316,7 +314,7 @@ fn fetch_episode(
             "Lezhin API returned non-zero code {:?}",
             json["code"].as_u64()
         );
-        Err("Lezhin API returned non-zero code")?
+        return Err("Lezhin API returned non-zero code".into());
     }
 
     json["data"]["extra"]["episode"]["scrollsInfo"]
@@ -343,7 +341,7 @@ pub(crate) fn fetch_titles(agent: &ureq::Agent, comic_ids: Vec<String>) -> Resul
         .iter()
         .map(|comic_id| {
             log::debug!("Fetching title for comic ID {}", comic_id);
-            Ok(fetch_product_object(agent, &comic_id)?.display["title"].clone())
+            Ok(fetch_product_object(agent, comic_id)?.display["title"].clone())
         })
         .collect::<Result<Vec<_>>>()
 }

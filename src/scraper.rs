@@ -2,7 +2,7 @@ use crate::error::Result;
 use crate::provider::Provider;
 use diesel::prelude::*;
 
-pub(crate) const FAKE_UA: &'static str =
+pub(crate) const FAKE_UA: &str =
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0";
 
 /// Starts scraping.
@@ -33,7 +33,7 @@ pub fn start(conn: &SqliteConnection, id_: &str, pw_: &str) -> Result<()> {
 
         log::info!("Scraping target {}/{}", target.provider, target.id);
 
-        target.provider.fetch_episodes(&agent, &target.id, &conn)?;
+        target.provider.fetch_episodes(&agent, &target.id, conn)?;
         diesel::update(scraping_targets.find((target.provider, target.id)))
             .set(last_scraping.eq(chrono::Local::now().naive_local()))
             .execute(conn)?;

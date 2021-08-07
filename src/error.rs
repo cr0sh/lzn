@@ -30,7 +30,7 @@ pub enum Error {
     #[error(display = "Currently unavailable episode")]
     UnavailableEpisode,
     #[error(display = "ureq failure")]
-    Ureq(#[error(source)] UreqError),
+    Ureq(#[error(source)] Box<UreqError>),
 }
 
 impl From<&'static str> for Error {

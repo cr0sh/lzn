@@ -3,9 +3,9 @@ use diesel::prelude::*;
 use select::document::Document;
 use select::predicate::{And, Attr, Class, Name};
 
-const MOBILE_COMIC_BASE_URL: &'static str = "https://m.comic.naver.com";
-const MOBILE_EPISODE_LIST_URL: &'static str = "https://m.comic.naver.com/webtoon/list.nhn";
-const COMIC_EPISODE_PAGE_URL: &'static str = "https://comic.naver.com/webtoon/detail.nhn";
+const MOBILE_COMIC_BASE_URL: &str = "https://m.comic.naver.com";
+const MOBILE_EPISODE_LIST_URL: &str = "https://m.comic.naver.com/webtoon/list.nhn";
+const COMIC_EPISODE_PAGE_URL: &str = "https://comic.naver.com/webtoon/detail.nhn";
 
 pub(crate) enum SortOrder {
     Ascending,
@@ -13,7 +13,7 @@ pub(crate) enum SortOrder {
 }
 
 impl SortOrder {
-    fn to_str(self) -> &'static str {
+    fn to_str(&self) -> &'static str {
         match self {
             Self::Ascending => "ASC",
             Self::Descending => "DESC",
@@ -22,6 +22,7 @@ impl SortOrder {
 }
 
 /// Parses episode list page into vector of tuples: (number, title, URL).
+#[allow(clippy::type_complexity)]
 pub(crate) fn fetch_episode_list_page(
     agent: &ureq::Agent,
     comic_id: &str,
@@ -95,7 +96,7 @@ pub(crate) fn fetch_episode(
     episode_num: u32,
 ) -> Result<(String, Vec<Vec<u8>>)> {
     use std::io::Read;
-    const FAKE_CHROME_74_UA: &'static str="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36";
+    const FAKE_CHROME_74_UA: &str="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36";
 
     // let url = Url::parse_with_params(
     //     COMIC_EPISODE_PAGE_URL,
@@ -168,12 +169,11 @@ pub(crate) fn fetch_episodes(
         title: Some(comic_title),
     };
 
-    if titles
+    if !titles
         .filter(crate::schema::titles::dsl::provider.eq(&rec.provider))
         .filter(crate::schema::titles::dsl::id.eq(&rec.id))
         .load::<TitleRecord>(conn)?
-        .len()
-        > 0
+        .is_empty()
     {
         diesel::update(
             titles
@@ -187,13 +187,12 @@ pub(crate) fn fetch_episodes(
     }
 
     for ep_num in first_num..=last_num {
-        if comics
+        if !comics
             .filter(crate::schema::comics::dsl::provider.eq(super::Provider::Naver))
             .filter(comic_id.eq(comic_id_.to_owned()))
             .filter(episode_seq.eq(ep_num as i32))
             .load::<ComicRecord>(conn)?
-            .len()
-            > 0
+            .is_empty()
         {
             log::debug!(
                 "Skipping episode sequence {} because record exists already",
