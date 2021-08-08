@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::io::Read;
 
+#[allow(dead_code)]
 const MAIN_PAGE_URL: &str = "https://www.lezhin.com/ko";
 const AUTH_URL: &str = "https://www.lezhin.com/ko/login";
 const EPISODE_LIST_URL: &str = "https://www.lezhin.com/ko/comic/";
@@ -57,9 +58,9 @@ where
 }
 
 pub(crate) fn fetch_authenticity_token(agent: &ureq::Agent) -> Result<String> {
-    let resp = agent.get(MAIN_PAGE_URL).call()?.into_string()?;
+    let resp = agent.get(AUTH_URL).call()?.into_string()?;
 
-    log::debug!("Main page response: \n{}", resp);
+    log::debug!("Auth page response: \n{}", resp);
 
     let doc = Document::from(resp.as_ref());
     Ok(doc
