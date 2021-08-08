@@ -60,7 +60,7 @@ where
 pub(crate) fn fetch_authenticity_token(agent: &ureq::Agent) -> Result<String> {
     let resp = agent.get(AUTH_URL).call()?.into_string()?;
 
-    log::debug!("Auth page response: \n{}", resp);
+    log::trace!("Auth page response: \n{}", resp);
 
     let doc = Document::from(resp.as_ref());
     Ok(doc
