@@ -1,13 +1,14 @@
 #[macro_use]
 extern crate diesel_migrations;
 
+use anyhow::anyhow;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{embed_migrations, RunMigrationsError};
-use std::error::Error;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+use lzn::error::Result;
 use lzn::web;
 
 const DEFAULT_DATABASE_NAME: &str = "lzn.sqlite";
@@ -101,7 +102,7 @@ enum Cmd {
 }
 
 impl Cmd {
-    fn process(self) -> Result<(), Box<dyn Error>> {
+    fn process(self) -> Result<()> {
         match self {
             #[cfg(not(feature = "merge"))]
             Cmd::MergeImages { .. } => {
@@ -113,8 +114,11 @@ impl Cmd {
 
                 dir.push("[0-9]*.jpg");
                 let paths = crate::util::sort_by_name_order(
-                    glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)?
-                        .collect::<Result<Vec<PathBuf>, _>>()?,
+                    glob::glob(
+                        dir.to_str()
+                            .ok_or_else(|| anyhow!("unable to convert PathBuf to str"))?,
+                    )?
+                    .collect::<Result<Vec<PathBuf>, _>>()?,
                 );
 
                 log::info!(
@@ -132,7 +136,10 @@ impl Cmd {
             Cmd::MergeDirs { mut dir, out } => {
                 dir.push("[0-9]* - *");
                 log::debug!("merge-dirs path: {}", dir.to_str().unwrap());
-                for path in glob::glob(dir.to_str().ok_or("unable to convert PathBuf to str")?)? {
+                for path in glob::glob(
+                    dir.to_str()
+                        .ok_or_else(|| anyhow!("unable to convert PathBuf to str"))?,
+                )? {
                     let mut iout = path?;
                     log::info!("Merging images inside {:?}", iout.to_str().unwrap());
                     let path = iout.clone();
@@ -155,8 +162,9 @@ impl Cmd {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
-                        let mut path = dirs::home_dir()
-                            .ok_or("Unable to get home directory of current user")?;
+                        let mut path = dirs::home_dir().ok_or_else(|| {
+                            anyhow!("Unable to get home directory of current user")
+                        })?;
                         path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
@@ -185,8 +193,9 @@ impl Cmd {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
-                        let mut path = dirs::home_dir()
-                            .ok_or("Unable to get home directory of current user")?;
+                        let mut path = dirs::home_dir().ok_or_else(|| {
+                            anyhow!("Unable to get home directory of current user")
+                        })?;
                         path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
@@ -197,7 +206,7 @@ impl Cmd {
                 let conn = SqliteConnection::establish(
                     dbpath.to_str().expect("Converting PathBuf to &str failed"),
                 )
-                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+                .map_err(|e| anyhow!("Cannot connect database: {:?}", e))?;
 
                 embedded_migrations::run_with_output(&conn, &mut std::io::stdout())?;
 
@@ -207,8 +216,9 @@ impl Cmd {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
-                        let mut path = dirs::home_dir()
-                            .ok_or("Unable to get home directory of current user")?;
+                        let mut path = dirs::home_dir().ok_or_else(|| {
+                            anyhow!("Unable to get home directory of current user")
+                        })?;
                         path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
@@ -217,7 +227,7 @@ impl Cmd {
                 let conn = SqliteConnection::establish(
                     dbpath.to_str().expect("Converting PathBuf to &str failed"),
                 )
-                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+                .map_err(|e| anyhow!("Cannot connect database: {:?}", e))?;
 
                 check_migrations(&conn)?;
 
@@ -233,8 +243,9 @@ impl Cmd {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
-                        let mut path = dirs::home_dir()
-                            .ok_or("Unable to get home directory of current user")?;
+                        let mut path = dirs::home_dir().ok_or_else(|| {
+                            anyhow!("Unable to get home directory of current user")
+                        })?;
                         path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
@@ -247,7 +258,7 @@ impl Cmd {
                 let conn = SqliteConnection::establish(
                     dbpath.to_str().expect("Converting PathBuf to &str failed"),
                 )
-                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+                .map_err(|e| anyhow!("Cannot connect database: {:?}", e))?;
 
                 check_migrations(&conn)?;
 
@@ -264,8 +275,9 @@ impl Cmd {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
-                        let mut path = dirs::home_dir()
-                            .ok_or("Unable to get home directory of current user")?;
+                        let mut path = dirs::home_dir().ok_or_else(|| {
+                            anyhow!("Unable to get home directory of current user")
+                        })?;
                         path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
@@ -278,7 +290,7 @@ impl Cmd {
                 let conn = SqliteConnection::establish(
                     dbpath.to_str().expect("Converting PathBuf to &str failed"),
                 )
-                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+                .map_err(|e| anyhow!("Cannot connect database: {:?}", e))?;
 
                 check_migrations(&conn)?;
 
@@ -293,8 +305,9 @@ impl Cmd {
                 let dbpath = match db {
                     Some(path) => path,
                     None => {
-                        let mut path = dirs::home_dir()
-                            .ok_or("Unable to get home directory of current user")?;
+                        let mut path = dirs::home_dir().ok_or_else(|| {
+                            anyhow!("Unable to get home directory of current user")
+                        })?;
                         path.push(DEFAULT_DATABASE_NAME);
                         path
                     }
@@ -308,7 +321,7 @@ impl Cmd {
                 let conn = SqliteConnection::establish(
                     dbpath.to_str().expect("Converting PathBuf to &str failed"),
                 )
-                .map_err(|e| format!("Cannot connect database: {:?}", e))?;
+                .map_err(|e| anyhow!("Cannot connect database: {:?}", e))?;
 
                 check_migrations(&conn)?;
 
@@ -352,11 +365,7 @@ fn main() {
     log::debug!("opt: {:?}", opt);
 
     if let Err(e) = opt.process() {
-        log::error!(
-            "Error: {}, source: {:?}",
-            e,
-            e.source().map(ToString::to_string)
-        );
+        log::error!("{:?}", e);
         std::process::exit(1)
     }
 }

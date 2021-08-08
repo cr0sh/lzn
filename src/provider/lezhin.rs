@@ -1,4 +1,5 @@
-use crate::error::{Error, Result};
+use crate::error::Result;
+use anyhow::anyhow;
 use chrono::{offset::TimeZone, DateTime, Utc};
 use diesel::prelude::*;
 use select::document::Document;
@@ -162,7 +163,7 @@ fn fetch_product_object(agent: &ureq::Agent, comic_id: &str) -> Result<LezhinPro
         }
     }
 
-    Err(Error::StaticStr("Cannot find LZ_PRODUCT variable"))
+    Err(anyhow!("Cannot find LZ_PRODUCT variable"))
 }
 
 pub(crate) fn fetch_episodes(
@@ -306,29 +307,29 @@ fn fetch_episode(
 
     let json: serde_json::Value = resp
         .into_json()
-        .map_err(|_| "Non-OK result for comic_view_k API request")?;
+        .map_err(|_| anyhow!("Non-OK result for comic_view_k API request"))?;
 
     if json["code"]
         .as_u64()
-        .ok_or("Expected integer code for API response")?
+        .ok_or_else(|| anyhow!("Expected integer code for API response"))?
         != 0
     {
         log::error!(
             "Lezhin API returned non-zero code {:?}",
             json["code"].as_u64()
         );
-        return Err("Lezhin API returned non-zero code".into());
+        return Err(anyhow!("Lezhin API returned non-zero code"));
     }
 
     json["data"]["extra"]["episode"]["scrollsInfo"]
         .as_array()
-        .ok_or("Expected list of image items")?
+        .ok_or_else(|| anyhow!("Expected list of image items"))?
         .iter()
         .map(|entry| {
             let url = String::from(CDN_BASE_URL)
                 + entry["path"]
                     .as_str()
-                    .ok_or("Expected string path for image item")?;
+                    .ok_or_else(|| anyhow!("Expected string path for image item"))?;
 
             let resp = agent.get(url.as_ref()).call()?;
             let mut buf = Vec::new();

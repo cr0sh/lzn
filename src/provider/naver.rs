@@ -1,4 +1,5 @@
 use crate::error::Result;
+use anyhow::anyhow;
 use diesel::prelude::*;
 use select::document::Document;
 use select::predicate::{And, Attr, Class, Name};
@@ -47,21 +48,25 @@ pub(crate) fn fetch_episode_list_page(
                         item.attrs()
                             .collect::<std::collections::HashMap<_, _>>()
                             .get("data-no")
-                            .ok_or("Cannot parse data-no attribute from episode list item")?
+                            .ok_or_else(|| {
+                                anyhow!("Cannot parse data-no attribute from episode list item")
+                            })?
                             .parse::<u32>()?,
                         item.find(Class("name"))
                             .next()
-                            .ok_or("Expected title name in episode item")?
+                            .ok_or_else(|| anyhow!("Expected title name in episode item"))?
                             .text(),
                         String::from(
                             *item
                                 .find(And(Name("a"), Class("link")))
                                 .next()
-                                .ok_or("Cannot find episode page link item")?
+                                .ok_or_else(|| anyhow!("Cannot find episode page link item"))?
                                 .attrs()
                                 .collect::<std::collections::HashMap<_, _>>()
                                 .get("href")
-                                .ok_or("Cannot get episode page link data(href) from item")?,
+                                .ok_or_else(|| {
+                                    anyhow!("Cannot get episode page link data(href) from item")
+                                })?,
                         ),
                     ))
                 })
@@ -82,7 +87,7 @@ pub(crate) fn fetch_episode_list_page(
     let comic_title = doc
         .find(And(Name("meta"), Attr("property", "og:title")))
         .next()
-        .ok_or("Expected comic title metadata in episode list page")?
+        .ok_or_else(|| anyhow!("Expected comic title metadata in episode list page"))?
         .attr("content")
         .expect("Found og:title metadata in episode list but there is no content attribute")
         .to_string();
@@ -113,12 +118,12 @@ pub(crate) fn fetch_episode(
     let image_links = doc
         .find(Class("wt_viewer"))
         .next()
-        .ok_or("Expected wt_viewer element in episode page")?
+        .ok_or_else(|| anyhow!("Expected wt_viewer element in episode page"))?
         .find(Name("img"))
         .into_iter()
         .map(|item| {
             item.attr("src")
-                .ok_or("Expected src link in episode img element")
+                .ok_or_else(|| anyhow!("Expected src link in episode img element"))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -137,7 +142,7 @@ pub(crate) fn fetch_episode(
     let title = doc
         .find(Class("tit_area"))
         .next()
-        .ok_or("Expected title area element in episode page")?
+        .ok_or_else(|| anyhow!("Expected title area element in episode page"))?
         .find(Name("h3"))
         .next()
         .expect("Expected title")
