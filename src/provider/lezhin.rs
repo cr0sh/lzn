@@ -9,7 +9,7 @@ use std::io::Read;
 
 #[allow(dead_code)]
 const MAIN_PAGE_URL: &str = "https://www.lezhin.com/ko";
-const AUTH_URL: &str = "https://www.lezhin.com/ko/login";
+const AUTH_URL: &str = "https://www.lezhin.com/ko/login?redirect=/ko";
 const EPISODE_LIST_URL: &str = "https://www.lezhin.com/ko/comic/";
 const COMIC_API_URL: &str = "https://www.lezhin.com/api/v2/inventory_groups/comic_viewer_k";
 const CDN_BASE_URL: &str = "https://cdn.lezhin.com/v2";
@@ -74,27 +74,29 @@ pub(crate) fn fetch_authenticity_token(agent: &ureq::Agent) -> Result<String> {
 
 pub(crate) fn authenticate(agent: &ureq::Agent, id: &str, password: &str) -> Result<()> {
     let auth_token = fetch_authenticity_token(agent)?;
+    log::debug!("authenticity_token: {}", auth_token);
 
     let encoded = url::form_urlencoded::Serializer::new(String::new())
         .extend_pairs(&[
             ("utf8", "✓"),
             ("authenticity_token", &auth_token),
+            ("redirect", "/ko"),
             ("username", id),
             ("password", password),
             ("remember_me", "false"),
         ])
         .finish();
     let res = agent.post(AUTH_URL).send_string(&encoded)?;
-    if res.status() != 200 {
-        panic!(
-            "Server returned non-OK result for authentication request: response code {}",
-            res.status()
-        );
-    }
 
-    // log::debug!("Auth response url: {}", res.url().to_string());
-    // log::debug!("Auth response code: {}", res.status().to_string());
-    // log::debug!("Auth cookies: {:#?}", res.cookies().collect::<Vec<_>>());
+    log::debug!(
+        "Auth response url: {}",
+        res.header("location").unwrap_or("<None>")
+    );
+    log::debug!("Auth response code: {}", res.status().to_string());
+    log::debug!(
+        "Auth cookies: {:#?}",
+        res.header("set-cookie").unwrap_or("<None>")
+    );
 
     // FIXME: If we authenticate outside Korea, how will the url change?
     // Maybe we should check not final url but initial redirection request,
